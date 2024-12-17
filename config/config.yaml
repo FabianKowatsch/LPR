@@ -1,0 +1,7 @@
+data_path: ./data/testing_set/images
+lpd_checkpoint_path: checkpoints/test/LPD.pt
+recognizer: tesseract # parseq | easyocr | tesseract
+language: en
+parseq_img_size: [32, 128]
+verbose: True
+visualize: True
