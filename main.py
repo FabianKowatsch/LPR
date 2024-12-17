@@ -6,6 +6,7 @@ import torch
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
+from modules.rotation import Rotation
 import yaml
 
 def load_images(directory_path):
@@ -20,8 +21,14 @@ def load_images(directory_path):
     #images = images.permute(0, 3, 1, 2)
     return image_list
 
-def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, upscaler: Upscaler, visualize=True):
-    images = load_images(data_path)
+def test(config):
+
+    images = load_images(config["data_path"])
+    detector = LPD_Module(config["lpd_checkpoint_path"])
+    ocr = OCR_Module(config)
+    upscaler = Upscaler(config)
+    rotate = Rotation()
+    visualize = config["visualize"]
 
     if(visualize):
         plt.ion()
@@ -39,6 +46,9 @@ def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, upscaler: Upscal
 
             # Upscaling
             lp_image = upscaler(lp_image)
+
+            # Rotation
+            lp_image = rotate(lp_image)
 
             # Text recognition
             lp_text = ocr(lp_image)
@@ -84,11 +94,7 @@ def main():
     with open('./config/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
 
-    detector = LPD_Module(config["lpd_checkpoint_path"])
-    ocr = OCR_Module(config)
-    upscaler = Upscaler(config)
-
-    test(config["data_path"], detector, ocr, upscaler, config["visualize"])
+    test(config)
 
 if __name__ == "__main__":
     main()
