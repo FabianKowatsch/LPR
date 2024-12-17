@@ -10,7 +10,6 @@ class OCR_Module:
     def __init__(self, config):
         self.config = config
         self.model_name = self.config["recognizer"]
-        self.recognize = None
         self.model = None
         
         # Tesseract
@@ -32,7 +31,7 @@ class OCR_Module:
                 print(f"Tesseract version: {tesseract_version}")
             except pytesseract.TesseractNotFoundError:
                 print("Tesseract is not installed or not added to the PATH.")
-            self.recognize = self.ocr_tesseract
+            self.forward = self.ocr_tesseract
             tesseract_oem = config["tesseract_engine"]
             tesseract_psm = config["tesseract_segmentation"]
             self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
@@ -40,14 +39,16 @@ class OCR_Module:
         # EasyOCR
         elif self.model_name == "easyocr":
             self.model = easyocr.Reader([self.config["language"]])
-            self.recognize = self.ocr_easyocr
+            self.forward = self.ocr_easyocr
         
         # Parseq
         elif self.model_name == "parseq":
             self.model = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
-            self.recognize= self.ocr_parseq
+            self.forward = self.ocr_parseq
             self.img_size = self.config["parseq_img_size"]
 
+    def __call__(self, image):
+        return self.forward(image)
     
     def ocr_tesseract(self, image):
         plate_text = pytesseract.image_to_string(image, config=self.tesseract_config)

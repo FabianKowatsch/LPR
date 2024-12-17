@@ -5,7 +5,7 @@ class LPD_Module:
     def __init__(self, model_path):
         self.model = YOLO(model_path)
 
-    def detect(self, images: torch.Tensor):
+    def __call__(self, images: torch.Tensor):
         results = self.model(source=images)
         boxes = []
         for result in results:

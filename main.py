@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
+from modules.upscaling import Upscaler
 import yaml
 
 def load_images(directory_path):
@@ -19,28 +20,31 @@ def load_images(directory_path):
     #images = images.permute(0, 3, 1, 2)
     return image_list
 
-def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, visualize=True):
+def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, upscaler: Upscaler, visualize=True):
     images = load_images(data_path)
 
     if(visualize):
         plt.ion()
-        _, axes = plt.subplots()
+        _, axes = plt.subplots(2, 1)
 
     for image in images:
 
         # LP detection
-        boxes = detector.detect(image)
+        boxes = detector(image)
 
         for box in boxes:
 
             # Crop the image to simplify ocr
             lp_image = crop_image(image, box)
 
+            # Upscaling
+            lp_image = upscaler(lp_image)
+
             # Text recognition
-            lp_text = ocr.recognize(lp_image)
+            lp_text = ocr(lp_image)
 
             if(visualize):
-                show_image(image, lp_text, box, axes)
+                show_image(image, lp_image, lp_text, box, axes)
 
     if(visualize):      
         plt.ioff()
@@ -48,22 +52,29 @@ def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, visualize=True):
 
 def crop_image(image, box):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
-    return image[y1:y2, x1:x2, :]
+    return image[y1:y2, x1:x2, :].copy()
 
-def show_image(image: np.ndarray, text: str, box, ax):
+def show_image(img: np.ndarray, plate_image:np.ndarray, text: str, box, ax):
 
     # draw red outlines
     x1, y1, x2, y2 = map(int, box.xyxy[0])
+    image = img.copy()
     image[y1, x1:x2-1, 0] = 255
     image[y2-1, x1:x2-1, 0] = 255
     image[y1:y2-1, x1, 0] = 255
     image[y1:y2-1, x2-1, 0] = 255
 
     # show image slideshow
-    ax.clear()
-    ax.imshow(image)
-    ax.set_title(f"Detected Text: {text}")
-    ax.axis('off')
+    ax[0].clear()
+    ax[0].imshow(image)
+    ax[0].set_title(f"License plate at: {[x1,x2], [y1,y2]}")
+    ax[0].axis('off')
+
+    ax[1].clear() 
+    ax[1].imshow(plate_image)
+    ax[1].set_title(text)
+    ax[1].axis('off')
+
     plt.draw()
     plt.pause(1.0)
 
@@ -75,8 +86,9 @@ def main():
 
     detector = LPD_Module(config["lpd_checkpoint_path"])
     ocr = OCR_Module(config)
+    upscaler = Upscaler(config)
 
-    test(config["data_path"], detector, ocr)
+    test(config["data_path"], detector, ocr, upscaler, config["visualize"])
 
 if __name__ == "__main__":
     main()
