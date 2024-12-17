@@ -44,7 +44,7 @@ def test(data_path: str, detector: LPD_Module, ocr: OCR_Module, visualize=True):
 
     if(visualize):      
         plt.ioff()
-        plt.show()
+        #plt.show()
 
 def crop_image(image, box):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -75,7 +75,7 @@ def main():
 
     detector = LPD_Module(config["lpd_checkpoint_path"])
     ocr = OCR_Module(config)
-    
+
     test(config["data_path"], detector, ocr)
 
 if __name__ == "__main__":

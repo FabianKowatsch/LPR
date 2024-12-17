@@ -3,6 +3,8 @@ import pytesseract
 import easyocr
 from torchvision import transforms as T
 import matplotlib.pyplot as plt
+import os
+import subprocess
 
 class OCR_Module:
     def __init__(self, config):
@@ -10,16 +12,37 @@ class OCR_Module:
         self.model_name = self.config["recognizer"]
         self.recognize = None
         self.model = None
+        
+        # Tesseract
         if self.model_name == "tesseract":
+
+            # Install if not available
+            if not os.path.exists(r'C:\Program Files\Tesseract-OCR\tesseract.exe'):
+                tesseract_installer = r'tesseract-ocr-w64-setup-5.5.0.20241111.exe'
+                if os.path.exists(tesseract_installer):
+                    subprocess.run([tesseract_installer, '/S'])
+                else:
+                    raise FileNotFoundError("Tesseract installer not found at the specified location.")
+            
+            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+            # Check if installation was successful
             try:
                 tesseract_version = pytesseract.get_tesseract_version()
                 print(f"Tesseract version: {tesseract_version}")
             except pytesseract.TesseractNotFoundError:
                 print("Tesseract is not installed or not added to the PATH.")
             self.recognize = self.ocr_tesseract
+            tesseract_oem = config["tesseract_engine"]
+            tesseract_psm = config["tesseract_segmentation"]
+            self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
+
+        # EasyOCR
         elif self.model_name == "easyocr":
             self.model = easyocr.Reader([self.config["language"]])
             self.recognize = self.ocr_easyocr
+        
+        # Parseq
         elif self.model_name == "parseq":
             self.model = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
             self.recognize= self.ocr_parseq
@@ -27,11 +50,9 @@ class OCR_Module:
 
     
     def ocr_tesseract(self, image):
-        custom_config = r'--oem 3 --psm 8'
-        plate_text = pytesseract.image_to_string(image, config=custom_config)
-        print(f"Recognized License Plate Text: {plate_text}")
+        plate_text = pytesseract.image_to_string(image, config=self.tesseract_config)
     
-        return plate_text.strip(), None, None, None
+        return plate_text.strip()
 
     
     def ocr_easyocr(self, image):

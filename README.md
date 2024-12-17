@@ -1,10 +1,17 @@
 # License Plate Recognition
 
 ## Installation
+
+Requires a Nvidia GPU with CUDA 11.8 support. Dependencies can be installed via conda:
 ```
 conda env create -f environment.yml
+```
+
+Activate the environment:
+```
 conda activate lpr
 ```
+
 ## Usage
 
 Testing:
