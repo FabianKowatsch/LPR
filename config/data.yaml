@@ -1,6 +1,6 @@
 names:
 - License Plate
 nc: 1
-train: ../../data/testing_set/images
-test: ../../data/testing_set/images
-val: ../../data/testing_set/images
+train: ../../data/train/images
+test: ../../data/test/images
+val: ../../data/valid/images

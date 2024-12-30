@@ -2,12 +2,12 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import yaml
 import torch
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
 from modules.rotation import Rotation
-import yaml
 
 def load_images(directory_path):
     image_list = []
