@@ -43,7 +43,7 @@ class Processing:
         return clahe.apply(image)
     
     def threshold(self, image):
-        # return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
+        #return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
         _, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
         return image
 
