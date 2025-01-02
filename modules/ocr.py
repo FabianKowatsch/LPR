@@ -9,7 +9,8 @@ import subprocess
 class OCR_Module:
     def __init__(self, config):
         self.config = config
-        self.model_name = self.config["recognizer"]
+        print(self.config)
+        self.model_name = self.config["type"]
         self.model = None
         
         # Tesseract
@@ -61,6 +62,7 @@ class OCR_Module:
         return " ".join([result[1] for result in results])
     
     def ocr_parseq(self, image):
+        print(image.shape)
         img = torch.tensor(image, dtype=torch.float32).permute(2, 0, 1)
         img /= 255.0
         

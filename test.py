@@ -13,7 +13,8 @@ from modules.image_processing import Processing
 def load_images(directory_path):
     image_list = []
     for filename in os.listdir(directory_path):
-        if filename.endswith('.jpg'):
+        if filename == "B_JF_185.jpg":
+        #if filename.endswith('.jpg'):
             image_path = os.path.join(directory_path, filename)
             img = cv2.imread(image_path)
             if img is not None:
@@ -32,7 +33,7 @@ def test(config):
     visualize = config["visualize"]
 
     if(visualize):
-        plt.ion()
+        #plt.ion()
         _, axes = plt.subplots(2, 1)
 
     for image in images:
@@ -61,8 +62,9 @@ def test(config):
                 show_image(image, lp_image, text_filtered, box, axes)
 
     if(visualize):      
-        plt.ioff()
+        #plt.ioff()
         #plt.show()
+        pass
 
 def crop_image(image, box):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -90,7 +92,8 @@ def show_image(img: np.ndarray, plate_image:np.ndarray, text: str, box, ax):
     ax[1].axis('off')
 
     plt.draw()
-    plt.pause(1.0)
+    plt.show()
+    #plt.pause(1.0)
 
 
 

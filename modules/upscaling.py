@@ -3,7 +3,7 @@ import cv2
 
 class Upscaler:
     def __init__(self, config):
-        self.mode = config["upscaling"]
+        self.mode = config["type"]
         self.scale_factor = config["scale_factor"]
         if(self.mode == "bicubic"):
             self.forward = self.bicubic
