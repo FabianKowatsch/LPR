@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import yaml
 import torch
+import re
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
@@ -53,8 +54,11 @@ def test(config):
             # Text recognition
             lp_text = ocr(lp_image)
 
+            # Filter text 
+            text_filtered =  re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+
             if(visualize):
-                show_image(image, lp_image, lp_text, box, axes)
+                show_image(image, lp_image, text_filtered, box, axes)
 
     if(visualize):      
         plt.ioff()

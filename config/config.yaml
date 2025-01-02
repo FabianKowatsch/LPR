@@ -1,4 +1,4 @@
-data_path: ./data/testing_set/images
+data_path: ./data/test/images
 lpd_checkpoint_path: checkpoints/test/LPD_best.pt
 recognizer: parseq # parseq, easyocr, tesseract
 language: en
