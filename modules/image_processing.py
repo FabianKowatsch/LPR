@@ -4,7 +4,7 @@ class Processing:
     def __init__(self, config):
         self.use_grayscale = config["grayscale"]
         self.denoising = config["denoising"]
-        self.normalize = config["normalize"]
+        self.normalization = config["normalize"]
         self.enhance_contrast = config["contrast"]
         self.thresholding = config["thresholding"]
         self.threshold_value = config["threshold_value"]
@@ -17,6 +17,8 @@ class Processing:
             image = self.grayscale(image)
         if(self.denoising):
             image = self.denoise(image)
+        if(self.normalization):
+            image = self.normalize(image)
         if(self.enhance_contrast):
             image = self.contrast(image)
         if(self.thresholding):
@@ -41,6 +43,7 @@ class Processing:
         return clahe.apply(image)
     
     def threshold(self, image):
+        # return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
         _, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
         return image
 
