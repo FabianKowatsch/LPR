@@ -1,5 +1,5 @@
 data_path: ./data/testing_set/images
-lpd_checkpoint_path: checkpoints/test/LPD.pt
+lpd_checkpoint_path: checkpoints/test/LPD_best.pt
 recognizer: parseq # parseq, easyocr, tesseract
 language: en
 parseq_img_size: [32, 128]
