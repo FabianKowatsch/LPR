@@ -34,15 +34,26 @@ Change LPR specific parameters in config/config.yaml:
 ```
 data_path: ./data/test/images
 lpd_checkpoint_path: checkpoints/test/LPD_best.pt
-recognizer: parseq # parseq, easyocr, tesseract
-language: en
-parseq_img_size: [32, 128]
-tesseract_engine: 3 # 0=Legacy, 1=LSTM, 2=Legacy+LSTM 3=default
-tesseract_segmentation: 7 # For single lines
 verbose: True
 visualize: True
-upscaling: "LANCZOS4" # LANCZOS4, bilinear, bicubic
-scale_factor: 2
+recognizer: 
+  type: tesseract # parseq, easyocr, tesseract
+  language: en
+  parseq_img_size: [32, 128]
+  tesseract_engine: 3 # 0=Legacy, 1=LSTM, 2=Legacy+LSTM 3=default
+  tesseract_segmentation: 7 # For single lines
+upscaler:
+  type: "LANCZOS4" # LANCZOS4, bilinear, bicubic
+  scale_factor: 2
+image_processing:
+  grayscale: True
+  denoising: False
+  normalize: True
+  contrast: False
+  thresholding: False
+  threshold_value: 125
+  rotation: False
+  max_rotation_angle: 15
 ```
 
 ## Dataset
