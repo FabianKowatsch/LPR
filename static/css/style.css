@@ -1,0 +1,142 @@
+/* Upload form styling */
+.upload-form {
+    max-width: 400px;
+    margin: auto;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.example-preview {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.example-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 5px;
+    border: 1px solid #ced4da;
+    cursor: pointer;
+}
+
+/* Styling for the file input field */
+input[type="file"] {
+    color: #495057;
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 5px;
+    cursor: pointer;
+}
+
+/* Custom styling for the "Choose File" button */
+input[type="file"]::file-selector-button {
+    background-color: #d827d6;
+    /* Purple color */
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Hover effect for the "Choose File" button */
+input[type="file"]::file-selector-button:hover {
+    background-color: #b51fb5;
+    /* Darker purple */
+}
+
+/* Styling for the upload button */
+.btn-success,
+.btn-submit {
+    background-color: #28a745;
+    border: none;
+    color: white;
+}
+
+/* Hover effect for the upload button */
+.btn-success:hover,
+.btn-submit:hover {
+    background-color: #218838;
+}
+
+/* Error message styling */
+.error-message {
+    color: #dc3545;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+/* Result media styling (image/video) */
+.result-media {
+    max-width: 150px;
+    /* Reduzierte Breite */
+    max-height: 150px;
+    /* Reduzierte Höhe */
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Card images (z.B. für license plates) */
+.card-img-top {
+    max-width: 150px;
+    /* Reduzierte Breite */
+    height: auto;
+    /* Automatische Höhe für das Seitenverhältnis */
+    object-fit: cover;
+    /* Bild an die Box anpassen */
+    border-radius: 5px;
+}
+
+/* Optional: Anpassung für die Karten */
+.card {
+    max-width: 170px;
+    /* Die Breite der gesamten Karte anpassen */
+    margin: 0 auto;
+}
+
+.example-img.selected {
+    border: 2px solid #28a745;
+}
+
+/* results container */
+.results-container {
+    max-width: 100%;
+    /* Ensure the container doesn’t exceed the screen width */
+    max-height: 50vh;
+    /* Limit the height to 80% of the viewport */
+    overflow-y:;
+    /* Enable vertical scrolling if content overflows */
+    overflow-x: hidden;
+    /* Prevent horizontal scrolling */
+    border: 1px solid #ddd;
+    /* Add a light border for aesthetics */
+    padding: 15px;
+    /* Add some padding for spacing inside the box */
+    background-color: #f9f9f9;
+    /* Optional: Light background for the container */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* Optional: Subtle shadow for better visuals */
+    border-radius: 8px;
+    /* Optional: Rounded corners for a polished look */
+}
+
+.card-img-top {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.card {
+    max-width: 200px;
+    margin: 0 auto;
+}

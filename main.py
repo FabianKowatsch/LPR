@@ -10,16 +10,33 @@ from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
 from modules.image_processing import Processing
 
-def load_images(directory_path):
+def load_images(path):
     image_list = []
-    for filename in os.listdir(directory_path):
-        if filename.endswith('.jpg'):
-            image_path = os.path.join(directory_path, filename)
-            img = cv2.imread(image_path)
+    
+    # If path is a single file
+    if os.path.isfile(path):
+        if path.endswith(('.jpg', '.png', '.jpeg')):  # Add support for PNG and other formats
+            img = cv2.imread(path)
             if img is not None:
                 image_list.append(img)
-    #images = torch.tensor(np.stack(image_list, axis=0))
-    #images = images.permute(0, 3, 1, 2)
+        else:
+            raise ValueError(f"Unsupported file format: {path}")
+    
+    # If path is a directory
+    elif os.path.isdir(path):
+        for filename in os.listdir(path):
+            if filename.endswith(('.jpg', '.png', '.jpeg')):
+                image_path = os.path.join(path, filename)
+                img = cv2.imread(image_path)
+                if img is not None:
+                    image_list.append(img)
+    
+    else:
+        raise FileNotFoundError(f"Path not found: {path}")
+    
+    if not image_list:
+        raise ValueError("No valid images found in the specified path.")
+    
     return image_list
 
 def load_images_and_labels(directory_path, label_path):
@@ -86,6 +103,81 @@ def test(config):
     if(visualize):      
         plt.ioff()
         #plt.show()
+
+
+def predict(config):
+    images = load_images(config["data_path"])
+    detector = LPD_Module(config["lpd_checkpoint_path"])
+    ocr = OCR_Module(config["recognizer"])
+    upscaler = Upscaler(config["upscaler"])
+    image_processing = Processing(config["image_processing"])
+    visualize = config["visualize"]
+    
+    results = []  # List to store results
+
+    for i, image in enumerate(images):
+        try:
+            boxes = detector(image)
+            if not boxes:  # No license plates detected
+                results.append({
+                    "image": image,
+                    "error": "No license plates detected."
+                })
+                continue
+        except Exception as e:
+            results.append({
+                "image": image,
+                "error": f"License plate detection failed: {str(e)}"
+            })
+            continue
+
+        for j, box in enumerate(boxes):
+            try:
+                # Crop the image to simplify ocr
+                lp_image = crop_image(image, box)
+
+                # Save the cropped image
+                cropped_image_path = f'static/uploads/cropped_plate_{i}_{j}.png'
+                cv2.imwrite(cropped_image_path, lp_image)
+
+                # Upscaling
+                lp_image = upscaler(lp_image)
+
+                # Processing
+                lp_image = image_processing(lp_image)
+
+                # Text recognition
+                lp_text = ocr(lp_image)
+
+                # Filter text, replace some symbols with spaces
+                text_filtered =  re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+
+                # If OCR failed, add only the error and skip the filtering
+                if "OCR failed" in lp_text:
+                    results.append({
+                        "image": cropped_image_path,
+                        "box": box,
+                        "lp_text": lp_text,
+                        "error": "OCR processing failed: No valid text detected."
+                    })
+                else:
+                    # Filter text and append a valid result
+                    print("hey im here!!")
+                    text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+                    results.append({
+                        "image": cropped_image_path,
+                        "box": box,
+                        "lp_text": lp_text,
+                        "text_filtered": text_filtered
+                    })
+            except Exception as e:
+                results.append({
+                    "image": image,
+                    "box": box,
+                    "error": f"OCR processing failed: {str(e)}"
+                })
+                continue
+    return results
 
 def crop_image(image, box):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
