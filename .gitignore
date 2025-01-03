@@ -3,3 +3,5 @@ __pycache__/
 _MACOSX/
 __MACOSX/
 data/
+static/uploads/
+.DS_Store

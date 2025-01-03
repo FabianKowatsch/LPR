@@ -13,29 +13,53 @@ class OCR_Module:
         self.model_name = self.config["type"]
         self.model = None
         
-        # Tesseract
+        # # Tesseract for windows
+        # if self.model_name == "tesseract":
+
+        #     # Install if not available
+        #     if not os.path.exists(r'C:\Program Files\Tesseract-OCR\tesseract.exe'):
+        #         tesseract_installer = r'tesseract-ocr-w64-setup-5.5.0.20241111.exe'
+        #         if os.path.exists(tesseract_installer):
+        #             subprocess.run([tesseract_installer, '/S'])
+        #         else:
+        #             raise FileNotFoundError("Tesseract installer not found at the specified location.")
+            
+        #     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+        #     # Check if installation was successful
+        #     try:
+        #         tesseract_version = pytesseract.get_tesseract_version()
+        #         print(f"Tesseract version: {tesseract_version}")
+        #     except pytesseract.TesseractNotFoundError:
+        #         print("Tesseract is not installed or not added to the PATH.")
+        #     self.forward = self.ocr_tesseract
+        #     tesseract_oem = config["tesseract_engine"]
+        #     tesseract_psm = config["tesseract_segmentation"]
+        #     self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
+
+         # Tesseract for MAC
         if self.model_name == "tesseract":
 
-            # Install if not available
-            if not os.path.exists(r'C:\Program Files\Tesseract-OCR\tesseract.exe'):
-                tesseract_installer = r'tesseract-ocr-w64-setup-5.5.0.20241111.exe'
-                if os.path.exists(tesseract_installer):
-                    subprocess.run([tesseract_installer, '/S'])
-                else:
-                    raise FileNotFoundError("Tesseract installer not found at the specified location.")
+            # Überprüfen, ob Tesseract installiert ist
+            if not os.path.exists(r'/usr/local/bin/tesseract'):
+                raise FileNotFoundError("Tesseract is not installed at '/usr/local/bin/tesseract'. Please install it using Homebrew (brew install tesseract).")
             
-            pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+            # Setze den Pfad zu Tesseract
+            pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
 
-            # Check if installation was successful
+            # Überprüfe, ob die Installation erfolgreich war
             try:
                 tesseract_version = pytesseract.get_tesseract_version()
                 print(f"Tesseract version: {tesseract_version}")
             except pytesseract.TesseractNotFoundError:
-                print("Tesseract is not installed or not added to the PATH.")
+                raise RuntimeError("Tesseract is not installed or not added to the PATH.")
+
+            # Konfiguration setzen
             self.forward = self.ocr_tesseract
             tesseract_oem = config["tesseract_engine"]
             tesseract_psm = config["tesseract_segmentation"]
             self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
+
 
         # EasyOCR
         elif self.model_name == "easyocr":
@@ -52,28 +76,45 @@ class OCR_Module:
         return self.forward(image)
     
     def ocr_tesseract(self, image):
-        plate_text = pytesseract.image_to_string(image, config=self.tesseract_config)
-    
-        return plate_text.strip()
+        try:
+            plate_text = pytesseract.image_to_string(image, config=self.tesseract_config)
+            if not plate_text.strip():  # Kein Text erkannt
+                raise ValueError("No text detected.")
+            return plate_text.strip()
+        except Exception as e:
+            print(f"Tesseract OCR failed: {e}")  # Debugging-Ausgabe
+            return "OCR failed: No text detected or invalid input."
 
-    
+
     def ocr_easyocr(self, image):
-        results = self.model.readtext(image)
-        return " ".join([result[1] for result in results])
-    
-    def ocr_parseq(self, image):
-        print(image.shape)
-        img = torch.tensor(image, dtype=torch.float32).permute(2, 0, 1)
-        img /= 255.0
+        try:
+            results = self.model.readtext(image)
+            if not results or len(results) == 0:  # Kein Text erkannt
+                raise ValueError("No text detected.")
+            return " ".join([result[1] for result in results])
+        except Exception as e:
+            print(f"EasyOCR failed: {e}")  # Debugging-Ausgabe
+            return "OCR failed: No text detected or invalid input."
         
-        transform = self.get_parseq_transform(self.img_size)
-        img = transform(img).unsqueeze(0)
 
-        logits = self.model(img)
-        pred = logits.softmax(-1)
-        label, confidence = self.model.tokenizer.decode(pred)
+    def ocr_parseq(self, image):
+        try:
+            img = torch.tensor(image, dtype=torch.float32).permute(2, 0, 1)
+            img /= 255.0
+            
+            transform = self.get_parseq_transform(self.img_size)
+            img = transform(img).unsqueeze(0)
 
-        return label[0]
+            logits = self.model(img)
+            pred = logits.softmax(-1)
+            label, confidence = self.model.tokenizer.decode(pred)
+
+            if not label or len(label[0].strip()) == 0:  # Kein Text erkannt
+                raise ValueError("No text detected.")
+            return label[0]
+        except Exception as e:
+            print(f"Parseq OCR failed: {e}")  # Debugging-Ausgabe
+            return "OCR failed: No text detected or invalid input."
     
     def get_parseq_transform(self, img_size: tuple[int] = (32, 128)):
         transforms = []
