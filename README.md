@@ -3,8 +3,17 @@
 ## Installation
 
 Requires a Nvidia GPU with CUDA 11.8 support. Dependencies can be installed via conda:
+
+For Windows/Linux:
+
 ```
 conda env create -f environment.yml
+```
+
+For MacOS or CPU only installation, run:
+
+```
+conda env create -f environment_osx.yml
 ```
 
 Activate the environment:
@@ -14,15 +23,44 @@ conda activate lpr
 
 ## Usage
 
-Testing:
+#### Web interface:
 
-```
+1. **Set the Flask app environment variable:**
+  Mac/Linux
+
+   ```bash
+   export FLASK_APP=app.py
+   export FLASK_ENV=development
+
+   ```
+  Windows
+
+  ```bash
+   set FLASK_APP=app.py
+   set FLASK_ENV=development
+
+   ```
+
+2. **Running the app**
+
+   ```bash
+    flask run
+   ```
+
+3. **Run without env variables**
+   ```bash
+   python3 app.py
+   ```
+
+### Testing:
+
+```bash
 python main.py
 ```
 
-Training:
+### Training:
 
-```
+```bash
 python train.py
 ```
 
