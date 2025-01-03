@@ -1,2 +1,5 @@
 __pycache__/
 *.cache
+_MACOSX/
+__MACOSX/
+data/
