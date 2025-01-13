@@ -13,52 +13,39 @@ class OCR_Module:
         self.model_name = self.config["type"]
         self.model = None
         
-        # # Tesseract for windows
-        # if self.model_name == "tesseract":
 
-        #     # Install if not available
-        #     if not os.path.exists(r'C:\Program Files\Tesseract-OCR\tesseract.exe'):
-        #         tesseract_installer = r'tesseract-ocr-w64-setup-5.5.0.20241111.exe'
-        #         if os.path.exists(tesseract_installer):
-        #             subprocess.run([tesseract_installer, '/S'])
-        #         else:
-        #             raise FileNotFoundError("Tesseract installer not found at the specified location.")
-            
-        #     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
-        #     # Check if installation was successful
-        #     try:
-        #         tesseract_version = pytesseract.get_tesseract_version()
-        #         print(f"Tesseract version: {tesseract_version}")
-        #     except pytesseract.TesseractNotFoundError:
-        #         print("Tesseract is not installed or not added to the PATH.")
-        #     self.forward = self.ocr_tesseract
-        #     tesseract_oem = config["tesseract_engine"]
-        #     tesseract_psm = config["tesseract_segmentation"]
-        #     self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
-
-         # Tesseract for MAC
+        # Tesseract for windows
         if self.model_name == "tesseract":
-
-            # Überprüfen, ob Tesseract installiert ist
-            if not os.path.exists(r'/usr/local/bin/tesseract'):
-                raise FileNotFoundError("Tesseract is not installed at '/usr/local/bin/tesseract'. Please install it using Homebrew (brew install tesseract).")
             
-            # Setze den Pfad zu Tesseract
-            pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
+            if os.name == "nt":
+                 # Install if not available
+                if not os.path.exists(r'C:\Program Files\Tesseract-OCR\tesseract.exe'):
+                    tesseract_installer = r'tesseract-ocr-w64-setup-5.5.0.20241111.exe'
+                    if os.path.exists(tesseract_installer):
+                        subprocess.run([tesseract_installer, '/S'])
+                    else:
+                        raise FileNotFoundError("Tesseract installer not found at the specified location.")
+            
+                pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-            # Überprüfe, ob die Installation erfolgreich war
+            elif os.name == "posix":
+                # Überprüfen, ob Tesseract installiert ist
+                if not os.path.exists(r'/usr/local/bin/tesseract'):
+                    raise FileNotFoundError("Tesseract is not installed at '/usr/local/bin/tesseract'. Please install it using Homebrew (brew install tesseract).")
+            
+                # Setze den Pfad zu Tesseract
+                pytesseract.pytesseract.tesseract_cmd = '/usr/local/bin/tesseract'
+
             try:
                 tesseract_version = pytesseract.get_tesseract_version()
                 print(f"Tesseract version: {tesseract_version}")
             except pytesseract.TesseractNotFoundError:
-                raise RuntimeError("Tesseract is not installed or not added to the PATH.")
-
-            # Konfiguration setzen
+                print("Tesseract is not installed or not added to the PATH.")
             self.forward = self.ocr_tesseract
             tesseract_oem = config["tesseract_engine"]
             tesseract_psm = config["tesseract_segmentation"]
             self.tesseract_config = f'--oem {tesseract_oem} --psm {tesseract_psm}'
+
 
 
         # EasyOCR
