@@ -14,9 +14,9 @@ dependencies:
   - flask
   - werkzeug
   - pip
-pip:
-  - ultralytics
-  - easyocr
-  - pytesseract
-  - timm
-  - nltk
+  - pip:
+    - ultralytics
+    - easyocr
+    - pytesseract
+    - timm
+    - nltk

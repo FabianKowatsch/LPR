@@ -13,7 +13,7 @@ conda env create -f environment.yml
 For MacOS or CPU only installation, run:
 
 ```
-conda env create -f environment_osx.yml
+conda env create -f environment_cpu.yml
 ```
 
 Activate the environment:
