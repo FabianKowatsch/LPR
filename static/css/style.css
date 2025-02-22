@@ -1,12 +1,42 @@
+:root {
+    --standard-color: #151c22;
+    /* #f8f9fa */
+    --standard-font-color: #fff;
+
+    --custom-light-grey: #8b8f93;
+    /* #dee2e6 */
+    --custom-grey: #495057;
+
+    --custom-pink: #d827d6;
+    --custom-dark-pink: #b51fb5;
+
+    --custom-green: #28a745;
+    --custom-dark-green: #218838;
+
+    --custom-red: #dc3545;
+
+    --shadow: rgba(0, 0, 0, 0.6);
+}
+
+html,
+body {
+    height: 100%;
+}
+
+.custom-body {
+    background-color: var(--standard-color);
+    color: var(--standard-font-color);
+}
+
 /* Upload form styling */
 .upload-form {
     max-width: 400px;
     margin: auto;
     padding: 20px;
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background-color: color-mix(in srgb, var(--standard-color) 80%, black 20%);
+    border: 1px solid var(--custom-light-grey);
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 8px var(--shadow);
 }
 
 .example-preview {
@@ -21,15 +51,15 @@
     height: 80px;
     object-fit: cover;
     border-radius: 5px;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--custom-light-grey);
     cursor: pointer;
 }
 
 /* Styling for the file input field */
 input[type="file"] {
-    color: #495057;
-    background-color: #e9ecef;
-    border: 1px solid #ced4da;
+    color: var(--custom-grey);
+    background-color: var(--standard-color);
+    border: 1px solid var(--custom-light-grey);
     border-radius: 5px;
     padding: 5px;
     cursor: pointer;
@@ -37,7 +67,7 @@ input[type="file"] {
 
 /* Custom styling for the "Choose File" button */
 input[type="file"]::file-selector-button {
-    background-color: #d827d6;
+    background-color: var(--custom-pink);
     /* Purple color */
     color: rgb(0, 0, 0);
     border: none;
@@ -48,14 +78,14 @@ input[type="file"]::file-selector-button {
 
 /* Hover effect for the "Choose File" button */
 input[type="file"]::file-selector-button:hover {
-    background-color: #b51fb5;
+    background-color: var(--custom-dark-pink);
     /* Darker purple */
 }
 
 /* Styling for the upload button */
 .btn-success,
 .btn-submit {
-    background-color: #28a745;
+    background-color: var(--custom-green);
     border: none;
     color: white;
 }
@@ -63,12 +93,12 @@ input[type="file"]::file-selector-button:hover {
 /* Hover effect for the upload button */
 .btn-success:hover,
 .btn-submit:hover {
-    background-color: #218838;
+    background-color: var(--custom-dark-green);
 }
 
 /* Error message styling */
 .error-message {
-    color: #dc3545;
+    color: var(--);
     font-size: 0.9rem;
     margin-top: 10px;
 }
@@ -82,7 +112,7 @@ input[type="file"]::file-selector-button:hover {
     width: auto;
     height: auto;
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 8px var(--shadow);
 }
 
 /* Card images (z.B. für license plates) */
@@ -104,29 +134,7 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .example-img.selected {
-    border: 2px solid #28a745;
-}
-
-/* results container */
-.results-container {
-    max-width: 100%;
-    /* Ensure the container doesn’t exceed the screen width */
-    max-height: 50vh;
-    /* Limit the height to 80% of the viewport */
-    overflow-y:;
-    /* Enable vertical scrolling if content overflows */
-    overflow-x: hidden;
-    /* Prevent horizontal scrolling */
-    border: 1px solid #ddd;
-    /* Add a light border for aesthetics */
-    padding: 15px;
-    /* Add some padding for spacing inside the box */
-    background-color: #f9f9f9;
-    /* Optional: Light background for the container */
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    /* Optional: Subtle shadow for better visuals */
-    border-radius: 8px;
-    /* Optional: Rounded corners for a polished look */
+    border: 2px solid var(--custom-green);
 }
 
 .card-img-top {
@@ -139,4 +147,55 @@ input[type="file"]::file-selector-button:hover {
 .card {
     max-width: 200px;
     margin: 0 auto;
+}
+
+.result-container {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+}
+
+.image-container {
+    display: flex;
+    align-items: center;
+
+    width: 80%;
+    height: 100%;
+    margin: 0;
+
+    background-color: color-mix(in srgb, var(--standard-color) 80%, black 20%);
+    border-radius: 10px;
+    border: 1px solid var(--custom-light-grey);
+
+    overflow: hidden;
+}
+
+.results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 20%;
+    min-width: 200px;
+    height: 100%;
+    padding: 5px;
+
+    background-color: color-mix(in srgb, var(--standard-color) 80%, black 20%);
+    border-radius: 10px;
+    border: 1px solid var(--custom-light-grey);
+
+    overflow: auto;
+}
+
+.result-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border: 1px solid var(--custom-light-grey);
+    border-radius: 5px;
+    background-color: var(--standard-color);
+    color: white;
 }

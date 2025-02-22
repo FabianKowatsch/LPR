@@ -152,33 +152,162 @@ def predict(config):
                 # Filter text, replace some symbols with spaces
                 text_filtered =  re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
 
+                box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
+
                 # If OCR failed, add only the error and skip the filtering
                 if "OCR failed" in lp_text:
                     results.append({
                         "image": cropped_image_path,
-                        "box": box,
+                        "box": box_serializable,
                         "lp_text": lp_text,
                         "error": "OCR processing failed: No valid text detected."
                     })
                 else:
                     # Filter text and append a valid result
-                    print("hey im here!!")
                     text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+
                     results.append({
                         "image": cropped_image_path,
-                        "box": box,
+                        "box": box_serializable,
                         "lp_text": lp_text,
                         "text_filtered": text_filtered
                     })
             except Exception as e:
+                box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
+
                 results.append({
                     "image": image,
-                    "box": box,
+                    "box": box_serializable,
                     "error": f"OCR processing failed: {str(e)}"
                 })
                 continue
+
+    print(f"First Box: {results[0]['box']}")
     return results
 
+# def predict_from_video(config):
+#     video_path = config["video_path"]
+    
+#     detector = LPD_Module(config["lpd_checkpoint_path"])
+#     ocr = OCR_Module(config["recognizer"])
+#     upscaler = Upscaler(config["upscaler"])
+#     image_processing = Processing(config["image_processing"])
+    
+#     # Directly process the video with YOLO
+#     results = detector(video_path)
+
+#     processed_results = []
+    
+#     for result in results:
+#         frame_count = result.frame_idx  # YOLO provides frame index
+#         fps = result.speed['fps'] if 'fps' in result.speed else 30  # Default FPS if missing
+#         seconds = frame_count / fps
+#         hours = int(seconds // 3600)
+#         minutes = int((seconds % 3600) // 60)
+#         seconds = int(seconds % 60)
+#         time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+#         for box in result.boxes:
+#             lp_image = crop_image(result.orig_img, box)
+#             lp_image = upscaler(lp_image)
+#             lp_image = image_processing(lp_image)
+#             lp_text = ocr(lp_image)
+#             text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+            
+#             if "OCR failed" in lp_text:
+#                 continue
+            
+#             processed_results.append({
+#                 "frame": frame_count,
+#                 "time": time_str,
+#                 "lp_text": lp_text,
+#                 "text_filtered": text_filtered
+#             })
+    
+#     return processed_results
+
+def predict_from_video(config):
+    video_path = config["data_path"]
+    cap = cv2.VideoCapture(video_path)
+    
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video file: {video_path}")
+
+    detector = LPD_Module(config["lpd_checkpoint_path"])
+    ocr = OCR_Module(config["recognizer"])
+    upscaler = Upscaler(config["upscaler"])
+    image_processing = Processing(config["image_processing"])
+    frame_interval = config["frame_interval"]
+    
+    frame_count = 0
+    results = []
+
+    # Create output folder if it doesn't exist
+    cropped_dir = "static/uploads/"
+    os.makedirs(cropped_dir, exist_ok=True)
+
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Get video FPS
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break  # Stop when the video ends
+
+        if frame_count % frame_interval == 0:
+            boxes = detector(frame)
+            for j, box in enumerate(boxes):
+                try:
+                    lp_image = crop_image(frame, box)
+
+                    # Save the cropped license plate image
+                    cropped_image_path = f"{cropped_dir}cropped_plate_frame_{frame_count}_plate_{j}.png"
+                    cv2.imwrite(cropped_image_path, lp_image)
+
+                    # Upscale
+                    lp_image = upscaler(lp_image)
+
+                    # Process
+                    lp_image = image_processing(lp_image)
+
+                    # OCR
+                    lp_text = ocr(lp_image)
+                    text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+
+                    if "OCR failed" in lp_text:
+                        continue
+
+                    # Calculate timestamp (HH:MM:SS)
+                    seconds = frame_count / fps
+                    hours = int(seconds // 3600)
+                    minutes = int((seconds % 3600) // 60)
+                    seconds = int(seconds % 60)
+                    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+                    box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
+
+                    # Append results with cropped image
+                    results.append({
+                        "frame": frame_count,
+                        "fps": fps,
+                        "time": time_str,
+                        "image": cropped_image_path,  # Add the path to the cropped image
+                        "box": box_serializable,
+                        "lp_text": lp_text,
+                        "text_filtered": text_filtered
+                    })
+                except Exception as e:
+                    print(f"Error processing plate in frame {frame_count}: {e}")
+                    continue
+
+        frame_count += 1
+
+    cap.release()
+    print(f"First Box: {results[0]['box']}")
+    return results
+
+
+
+# UTILS _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 def crop_image(image, box):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
     return image[y1:y2, x1:x2, :].copy()
@@ -212,7 +341,11 @@ def main():
     with open('./config/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
 
-    test(config)
+    # test(config)
+    config['data_path'] = '/mnt/c/Users/jovab/Desktop/Licence_Plate_Camera_Illustration_Video.mkv'
+    config['frame_interval'] = 5
+    results = predict_from_video(config)
+    print(results)
 
 if __name__ == "__main__":
     main()

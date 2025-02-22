@@ -1,8 +1,8 @@
 import os
 import yaml
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.utils import secure_filename
-from main import predict  # Function for license plate recognition
+from main import predict, predict_from_video  # Function for license plate recognition
 import traceback
 
 # Flask App Configuration
@@ -17,48 +17,61 @@ os.makedirs(app.config['EXAMPLES_FOLDER'], exist_ok=True)
 
 # Helper function to check allowed file extensions
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'mp4', 'avi'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov', 'mkv'}
 
 # Route for the homepage
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Route for file upload and inference
 @app.route('/upload', methods=['POST'])
 def upload_file():
     # Retrieve form data
     example_choice = request.form.get('example')  # Selected example
     recognizer_choice = request.form.get('recognizer')  # Selected recognizer
+    print(f"Selected Example: {example_choice}, Selected Recognizer: {recognizer_choice}")
 
     # Validate recognizer selection
     if not recognizer_choice:
         flash('Please choose a recognizer.', 'danger')
-        return redirect(url_for('index'))
+        return jsonify({'error': 'Please choose a recognizer.'}), 400
 
     # Process uploaded file or selected example
     file = request.files.get('file')
     filename = None
     file_path = None
     file_url = None
+    is_video = False  # Flag to check if the file is a video
+
+    # Define allowed video formats
+    VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
 
     if file and file.filename.strip():
+        file_ext = os.path.splitext(file.filename)[1].lower()  # Get file extension
         if allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
             file_url = url_for('static', filename=f'uploads/{filename}')
+
+            # Check if the uploaded file is a video
+            if file_ext in VIDEO_EXTENSIONS:
+                is_video = True
         else:
             flash('Unsupported file type. Please upload an image or video.', 'danger')
-            return redirect(url_for('index'))
+            return jsonify({'error': 'Unsupported file type. Please upload an image or video.'}), 400
     elif example_choice:
         filename = example_choice
         file_path = os.path.join(app.config['EXAMPLES_FOLDER'], filename)
         file_url = url_for('static', filename=f'examples/{filename}')
+        
+        # Check if example file is a video
+        file_ext = os.path.splitext(filename)[1].lower()
+        if file_ext in VIDEO_EXTENSIONS:
+            is_video = True
     else:
         flash('Please upload a file or choose an example.', 'danger')
-        return redirect(url_for('index'))
-    
+        return jsonify({'error': 'Please upload a file or choose an example.'}), 400
 
     # Load the configuration
     try:
@@ -66,28 +79,33 @@ def upload_file():
             config = yaml.safe_load(yaml_file)
     except FileNotFoundError:
         flash('Configuration file not found.', 'danger')
-        return redirect(url_for('index'))
+        return jsonify({'error': 'Configuration file not found.'}), 400
+
     # Update configuration with file path and recognizer choice
-    config["data_path"]= file_path
+    config["data_path"] = file_path
     config["recognizer"]["type"] = recognizer_choice
 
     # Perform inference
     try:
-        results = predict(config)
-        flash(f'Recognizer: {recognizer_choice}. Inference completed.', 'success')
+        if is_video:
+            config["frame_interval"] = 12
+            results = predict_from_video(config)
+            flash(f'Recognizer: {recognizer_choice}. Video inference completed.', 'success')
+        else:
+            results = predict(config)
+            flash(f'Recognizer: {recognizer_choice}. Image inference completed.', 'success')
     except Exception as e:
         flash(f'Error during inference: {str(e)}', 'danger')
         traceback.print_exc()
-        return redirect(url_for('index'))
-    
+        return jsonify({'error': f'Error during inference: {str(e)}'}), 500
 
-    # Render the results page
-    return render_template(
-        'result.html',
-        file_url=file_url,
-        filename=filename,
-        results=results
-    )
+    # After performing inference
+    data = {
+        "file_url": file_url,
+        "filename": filename,
+        "results": results,
+    }
+    return jsonify(data), 200
 
 # Run the app
 if __name__ == '__main__':
