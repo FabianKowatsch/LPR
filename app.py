@@ -29,7 +29,8 @@ def upload_file():
     # Retrieve form data
     example_choice = request.form.get('example')  # Selected example
     recognizer_choice = request.form.get('recognizer')  # Selected recognizer
-    print(f"Selected Example: {example_choice}, Selected Recognizer: {recognizer_choice}")
+    frame_interval = int(request.form.get('frameInterval', 1))
+    print(f"Selected Example: {example_choice}, Selected Recognizer: {recognizer_choice}, Frame Interval: {frame_interval}")
 
     # Validate recognizer selection
     if not recognizer_choice:
@@ -88,7 +89,7 @@ def upload_file():
     # Perform inference
     try:
         if is_video:
-            config["frame_interval"] = 12
+            config["frame_interval"] = frame_interval
             results = predict_from_video(config)
             flash(f'Recognizer: {recognizer_choice}. Video inference completed.', 'success')
         else:

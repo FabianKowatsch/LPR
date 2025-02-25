@@ -76,6 +76,7 @@ function runInference() {
     const fileInput = document.getElementById("fileInput");
     const exampleSelect = document.getElementById("exampleSelect");
     const recognizerSelect = document.getElementById("recognizerSelect");
+    const frameInterval = document.getElementById("frameInterval");
     const errorMessage = document.getElementById("errorMessage");
 
     if (
@@ -91,6 +92,7 @@ function runInference() {
     const file = fileInput.files[0];
     const examplePath = exampleSelect.value || null;
     const recognizer = recognizerSelect.value;
+    const frameIntervalValue = frameInterval.value || 1;
 
     let localImageUrl = null;
     if (file)
@@ -100,6 +102,7 @@ function runInference() {
     formData.append("file", file);
     formData.append("example", examplePath);
     formData.append("recognizer", recognizer);
+    formData.append("frameInterval", frameIntervalValue);
 
     fetch("/upload", {
         method: "POST",
@@ -257,12 +260,11 @@ function processResults(results) {
                 // Set the video to the exact time
                 mediaElement.currentTime = timeInSeconds;
             }
-
-            // Display bounding box for both video and image
-            if (plate.boundingBoxes.length > 0) {
-                highlightBoundingBox(plate, bboxOverlay, mediaElement, frameRate);
-            }
         });
+
+        // mediaElement.addEventListener("loadedmetadata", () => {
+        highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
+        // });
 
         resultsList.appendChild(resultItem);
     });
@@ -274,115 +276,131 @@ function processResults(results) {
  * @param {HTMLElement} overlay - The overlay container.
  * @param {HTMLMediaElement} media - The media element (image or video).
  */
-function highlightBoundingBox(plate, overlay, media, framerate) {
-    const firstBox = plate.boundingBoxes[0];
-    const firstBbox = parseBbox(firstBox[0]);
-
-    function showBoundingBox(bbox) {
-        // Clear previous bounding boxes
-        overlay.innerHTML = "";
-
+function highlightBoundingBoxes(plates, overlay, media, framerate) {
+    function showBoundingBox(bbox, plateID) {
         // Get media dimensions
         const mediaRect = media.getBoundingClientRect();
-
-        // Scale bbox to match displayed media size
         const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
         const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
 
-        // Create bounding box element
-        const bboxElement = document.createElement("div");
-        bboxElement.style = `
+        console.log(media, mediaRect, media.naturalWidth, media.naturalHeight, media.videoWidth, media.videoHeight);
+
+        // Create bounding box container
+        const bboxContainer = document.createElement("div");
+            bboxContainer.style = `
             position: absolute;
             left: ${bbox.x * scaleX}px;
             top: ${bbox.y * scaleY}px;
             width: ${bbox.width * scaleX}px;
             height: ${bbox.height * scaleY}px;
-            outline: 3px dashed white;
-            background: transparent;
+            outline: 3px solid rgb(191, 10, 70); 
+            background: rgba(191, 10, 70, 0.1);
             pointer-events: none;
         `;
 
-        overlay.appendChild(bboxElement);
+        // Create label
+        const label = document.createElement("div");
+        label.innerText = plateID;
+        label.style = `
+            position: absolute;
+            left: -3px; /* Align with outline */
+            top: -28px; /* Adjust based on outline */
+            width: calc(100% + 6px);
+            padding: 4px;
+            background: rgb(191, 10, 70);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+        `;
+
+        // Append label to bounding box
+        bboxContainer.appendChild(label);
+        overlay.appendChild(bboxContainer);
     }
-    showBoundingBox(firstBbox);
 
-    function showCurrentBoundingBox() {
-        const currentFrame = Math.ceil(media.currentTime * framerate); // Calculate the current frame based on video FPS
 
-        if (currentFrame > plate.frames[plate.frames.length - 1]) {
-            overlay.innerHTML = "";
-            return;
-        }
-        // Get the closest index to the current frame
-        let previousIndex;
-        let nextIndex;
-        for (let i = 0; i < plate.frames.length; i++) {
-            if (plate.frames[i] <= currentFrame) {
-                previousIndex = i;
-                nextIndex = i + 1;
-                break;
+    function showCurrentBoundingBoxes() {
+        overlay.innerHTML = ""; // Clear previous bounding boxes
+        const currentFrame = Math.ceil(media.currentTime * framerate);
+
+        plates.forEach((plate, index) => {
+            if (currentFrame < plate.frames[0]
+                || currentFrame > plate.frames[plate.frames.length - 1]
+            ) {
+                return;
             }
-        }
 
-        if (nextIndex >= plate.frames.length || previousIndex == null) {
-            overlay.innerHTML = "";
-            return;
-        }
+            // Find the closest bounding boxes for interpolation
+            let previousIndex = null;
+            let nextIndex = null;
 
-        const previousFrame = plate.frames[previousIndex];
-        const nextFrame = plate.frames[nextIndex];
+            for (let i = 0; i < plate.frames.length - 1; i++) {
+                if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
+                    previousIndex = i;
+                    nextIndex = i + 1;
+                    break;
+                }
+            }
+            console.log(previousIndex, nextIndex);
 
-        const distance = Math.abs(nextFrame - previousFrame);
-        const currentDistance = Math.abs(currentFrame - previousFrame);
-        const time = currentDistance / distance;
+            if (nextIndex === null || previousIndex === null) {
+                return;
+            }
 
-        const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
-        const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+            const previousFrame = plate.frames[previousIndex];
+            const nextFrame = plate.frames[nextIndex];
 
-        const bbox = interpolateBoundingBoxes(
-            previousBbox,
-            nextBbox,
-            time
-        );
-        // Update the bounding box
-        showBoundingBox(bbox);
+            const distance = Math.abs(nextFrame - previousFrame);
+            const currentDistance = Math.abs(currentFrame - previousFrame);
+            const time = currentDistance / distance;
+
+            const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
+            const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+
+            const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+            showBoundingBox(bbox, plate.filteredText);
+        });
     }
 
-    let lastKnownTime = 0;
     let animationFrameId = null;
-    function updateBoundingBox() {
-        showCurrentBoundingBox();
-        // Request the next frame update
-        animationFrameId = requestAnimationFrame(updateBoundingBox);
+
+    function updateBoundingBoxes() {
+        showCurrentBoundingBoxes();
+        animationFrameId = requestAnimationFrame(updateBoundingBoxes);
     }
 
     if (media instanceof HTMLVideoElement) {
         media.addEventListener('play', () => {
-            const currentTime = media.currentTime;
-
-            // Only start a new frame tracking if the time has changed significantly
-            if (Math.abs(currentTime - lastKnownTime) > 0.1) { // Adjust threshold as needed
-                lastKnownTime = currentTime;
-                updateBoundingBox();
-            }
+            updateBoundingBoxes();
         });
 
         media.addEventListener('pause', () => {
             if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId); // Stop the animation frame when the video is paused
-                animationFrameId = null; // Reset the animation frame ID
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
             }
         });
 
         media.addEventListener('seeked', () => {
             if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId); // Stop the animation frame when the video is seeked
-                animationFrameId = null; // Reset the animation frame ID
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
             }
-            showCurrentBoundingBox();
-        })
+            showCurrentBoundingBoxes();
+        });
+
+        media.addEventListener('timeupdate', () => {
+            showCurrentBoundingBoxes();
+        });
     } else {
-        showBoundingBox(firstBbox);
+        media.addEventListener('load', () => {
+            for (let i = 0; i < plates.length; i++) {
+                console.log(plates[i].lpText);
+                const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+                showBoundingBox(bbox, plates[i].filteredText);
+            }
+        })
     }
 }
 
