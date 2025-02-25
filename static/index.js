@@ -247,6 +247,13 @@ function processResults(results) {
         filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
         resultItem.appendChild(filteredTextElement);
 
+        // Back to Home Button hinzufügen
+        const backButton = document.createElement("a");
+        backButton.href = "/";
+        backButton.className = "btn btn-primary w-100 mt-4";
+        backButton.textContent = "Upload Another File";
+        resultsList.appendChild(backButton);
+
         // Add event listener for clicking result items
         resultItem.style.cursor = "pointer";
         resultItem.addEventListener("click", () => {

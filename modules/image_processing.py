@@ -30,7 +30,7 @@ class Processing:
         return image
 
     def grayscale(self, image):
-        return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) #statt COLOR_RGB2GRAY
     
     def denoise(self, image):
         return cv2.GaussianBlur(image, (5, 5), 0)
