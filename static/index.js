@@ -131,34 +131,34 @@ function runInference() {
 }
 
 function processResults(results) {
-    const uploadContainer = document.getElementById("uploadContainer");
-    const resultContainer = document.getElementById("resultContainer");
-    const imageContainer = document.getElementById("imageContainer");
-    const resultsList = document.getElementById("resultsList");
+  const uploadContainer = document.getElementById("uploadContainer");
+  const resultContainer = document.getElementById("resultContainer");
+  const imageContainer = document.getElementById("imageContainer");
+  const resultsList = document.getElementById("resultsList");
 
-    // Hide the upload container and show the result container
-    uploadContainer.style.display = "none";
-    resultContainer.style.display = "flex";
+  // Hide the upload container and show the result container
+  uploadContainer.style.display = "none";
+  resultContainer.style.display = "flex";
 
-    // Clear previous content
-    imageContainer.innerHTML = "";
-    resultsList.innerHTML = "";
+  // Clear previous content
+  imageContainer.innerHTML = "";
+  resultsList.innerHTML = "";
 
-    // Determine if the uploaded file is a video
-    const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
-    const fileExtension = results.filename.split('.').pop().toLowerCase();
-    const isVideo = videoExtensions.includes(`.${fileExtension}`);
+  // Determine if the uploaded file is a video
+  const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
+  const fileExtension = results.filename.split(".").pop().toLowerCase();
+  const isVideo = videoExtensions.includes(`.${fileExtension}`);
 
-    let mediaElement = null;
-    let bboxOverlay = null;
+  let mediaElement = null;
+  let bboxOverlay = null;
 
-    if (isVideo) {
-        // Create a <video> element
-        mediaElement = document.createElement("video");
-        mediaElement.src = results.file_url;
-        mediaElement.controls = true;
-        mediaElement.autoplay = false;
-        mediaElement.style = `
+  if (isVideo) {
+    // Create a <video> element
+    mediaElement = document.createElement("video");
+    mediaElement.src = results.file_url;
+    mediaElement.controls = true;
+    mediaElement.autoplay = false;
+    mediaElement.style = `
             max-width: 100%; 
             height: auto; 
             max-height: 100%; 
@@ -166,9 +166,9 @@ function processResults(results) {
             margin: auto;
         `;
 
-        // Create bounding box overlay for video
-        bboxOverlay = document.createElement("div");
-        bboxOverlay.style = `
+    // Create bounding box overlay for video
+    bboxOverlay = document.createElement("div");
+    bboxOverlay.style = `
             position: absolute;
             top: 0;
             left: 0;
@@ -177,38 +177,38 @@ function processResults(results) {
             pointer-events: none;
         `;
 
-        // Wrap video and overlay
-        const mediaWrapper = document.createElement("div");
-        mediaWrapper.style = `
+    // Wrap video and overlay
+    const mediaWrapper = document.createElement("div");
+    mediaWrapper.style = `
             position: relative; 
             display: inline-block;
         `;
-        mediaWrapper.appendChild(mediaElement);
-        mediaWrapper.appendChild(bboxOverlay);
+    mediaWrapper.appendChild(mediaElement);
+    mediaWrapper.appendChild(bboxOverlay);
 
-        imageContainer.appendChild(mediaWrapper);
-    } else {
-        // Create a container for image and bounding boxes
-        const mediaWrapper = document.createElement("div");
-        mediaWrapper.style = `
+    imageContainer.appendChild(mediaWrapper);
+  } else {
+    // Create a container for image and bounding boxes
+    const mediaWrapper = document.createElement("div");
+    mediaWrapper.style = `
             position: relative; 
             display: inline-block;
         `;
 
-        // Create the original image
-        mediaElement = document.createElement("img");
-        mediaElement.src = results.file_url;
-        mediaElement.alt = results.filename;
-        mediaElement.style = `
+    // Create the original image
+    mediaElement = document.createElement("img");
+    mediaElement.src = results.file_url;
+    mediaElement.alt = results.filename;
+    mediaElement.style = `
             max-width: 100%; 
             height: auto; 
             max-height: 100%;
         `;
-        mediaWrapper.appendChild(mediaElement);
+    mediaWrapper.appendChild(mediaElement);
 
-        // Create bounding box overlay
-        bboxOverlay = document.createElement("div");
-        bboxOverlay.style = `
+    // Create bounding box overlay
+    bboxOverlay = document.createElement("div");
+    bboxOverlay.style = `
             position: absolute; 
             top: 0; 
             left: 0; 
@@ -216,72 +216,84 @@ function processResults(results) {
             height: 100%; 
             pointer-events: none;
         `;
-        mediaWrapper.appendChild(bboxOverlay);
+    mediaWrapper.appendChild(bboxOverlay);
 
-        imageContainer.appendChild(mediaWrapper);
-    }
+    imageContainer.appendChild(mediaWrapper);
+  }
 
-    // Add license plate detection results
-    results.results.forEach((item) => {
-        addLicensePlate(item);
-    })
+  // Add license plate detection results
+  results.results.forEach((item) => {
+    addLicensePlate(item);
+  });
 
-    const frameRate = results.results[0]?.fps || 30;
-    // Loop through inference results and create result items
-    licensePlates.forEach((plate) => {
-        console.log("Number of images:", plate.images.length);
-        const resultItem = document.createElement("div");
-        resultItem.classList.add("result-item");
+  const frameRate = results.results[0]?.fps || 30;
+  // Loop through inference results and create result items
+  licensePlates.forEach((plate) => {
+    console.log("Number of images:", plate.images.length);
+    const resultItem = document.createElement("div");
+    resultItem.classList.add("result-item");
 
-        // Create an image element for the cropped license plate
-        const croppedImg = document.createElement("img");
-        croppedImg.src = plate.images[0];
-        croppedImg.alt = plate.lp_text;
-        croppedImg.style = `
+    // Create an image element for the cropped license plate
+    const croppedImg = document.createElement("img");
+    croppedImg.src = plate.images[0];
+    croppedImg.alt = plate.lp_text;
+    croppedImg.style = `
             max-width: 100%; 
             height: 50px; 
             border-radius: 5px;
         `;
-        resultItem.appendChild(croppedImg);
+    resultItem.appendChild(croppedImg);
 
-        // Create a text element for the detected license plate text
-        const textElement = document.createElement("p");
-        textElement.innerHTML = `<strong>Detected:</strong> ${plate.lpText}`;
-        resultItem.appendChild(textElement);
+    // Create a text element for the detected license plate text
+    const textElement = document.createElement("p");
+    textElement.innerHTML = `<strong>Detected:</strong> ${plate.lpText}`;
+    resultItem.appendChild(textElement);
 
-        // Create a text element for the filtered license plate text
-        const filteredTextElement = document.createElement("p");
-        filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
-        resultItem.appendChild(filteredTextElement);
+    // Create a text element for the filtered license plate text
+    const filteredTextElement = document.createElement("p");
+    filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
+    resultItem.appendChild(filteredTextElement);
 
-        // Back to Home Button hinzufügen
-        const backButton = document.createElement("a");
-        backButton.href = "/";
-        backButton.className = "btn btn-primary w-100 mt-4";
-        backButton.textContent = "Upload Another File";
-        resultsList.appendChild(backButton);
+    // Check if filename display already exists
+    const existingFilenameDisplay =
+      resultContainer.querySelector(".filename-display");
 
-        // Add event listener for clicking result items
-        resultItem.style.cursor = "pointer";
-        resultItem.addEventListener("click", () => {
-            if (isVideo && mediaElement) {
-                // Calculate the time from the frame number
-                const frameNumber = plate.frames[0]; // The frame number you want to seek to
+    // If it doesn't exist, create and add it
+    if (!existingFilenameDisplay) {
+      const filenameDisplay = document.createElement("div");
+      filenameDisplay.classList.add("filename-display");
+      filenameDisplay.innerHTML = `<strong>File:</strong> ${results.filename}`;
+      resultContainer.insertBefore(filenameDisplay, imageContainer);
+    }
 
-                // Calculate the exact time in seconds based on the frame and fps
-                const timeInSeconds = frameNumber / frameRate;
+    // Back to Home Button hinzufügen
+    const backButton = document.createElement("a");
+    backButton.href = "/";
+    backButton.className = "btn btn-primary w-100 mt-4";
+    backButton.textContent = "Upload Another File";
+    resultsList.appendChild(backButton);
 
-                // Set the video to the exact time
-                mediaElement.currentTime = timeInSeconds;
-            }
-        });
+    // Add event listener for clicking result items
+    resultItem.style.cursor = "pointer";
+    resultItem.addEventListener("click", () => {
+      if (isVideo && mediaElement) {
+        // Calculate the time from the frame number
+        const frameNumber = plate.frames[0]; // The frame number you want to seek to
 
-        // mediaElement.addEventListener("loadedmetadata", () => {
-        highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
-        // });
+        // Calculate the exact time in seconds based on the frame and fps
+        const timeInSeconds = frameNumber / frameRate;
 
-        resultsList.appendChild(resultItem);
+        // Set the video to the exact time
+        mediaElement.currentTime = timeInSeconds;
+      }
     });
+
+    // mediaElement.addEventListener("loadedmetadata", () => {
+    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate);
+    // });
+
+    resultsList.appendChild(resultItem);
+  });
 }
 
 /**
@@ -416,6 +428,18 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
             }
         })
     }
+
+    window.addEventListener('resize', () => {
+    if (media instanceof HTMLVideoElement) {
+        showCurrentBoundingBoxes();
+    } else {
+        overlay.innerHTML = ""; // Clear previous bounding boxes
+        for (let i = 0; i < plates.length; i++) {
+            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+            showBoundingBox(bbox, plates[i].filteredText);
+        }
+    }
+});
 }
 
 
