@@ -65,10 +65,17 @@ function addLicensePlate(plateItem) {
         existingLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
     } else {
         // Otherwise, create a new LicensePlate object and add it to the list
-        const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered);
-        newLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
-        licensePlates.push(newLicensePlate);
-    }
+        if(!plateItem.error){
+            const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered);
+            newLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
+            licensePlates.push(newLicensePlate);
+        }else{
+            const newLicensePlate = new LicensePlate(plateItem.error, plateItem.error);
+            licensePlates.push(newLicensePlate);
+        }
+
+        }
+        
 }
 
 

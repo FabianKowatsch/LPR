@@ -120,13 +120,13 @@ def predict(config):
             boxes = detector(image)
             if not boxes:  # No license plates detected
                 results.append({
-                    "image": image,
+                    "image": None,
                     "error": "No license plates detected."
                 })
                 continue
         except Exception as e:
             results.append({
-                "image": image,
+                "image": None,
                 "error": f"License plate detection failed: {str(e)}"
             })
             continue
@@ -182,7 +182,6 @@ def predict(config):
                 })
                 continue
 
-    print(f"First Box: {results[0]['box']}")
     return results
 
 # def predict_from_video(config):

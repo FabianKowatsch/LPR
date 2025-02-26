@@ -106,6 +106,7 @@ def upload_file():
         "filename": filename,
         "results": results,
     }
+    print("DATA: ", data)
     return jsonify(data), 200
 
 # Run the app
