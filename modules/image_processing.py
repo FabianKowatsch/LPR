@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 class Processing:
     def __init__(self, config):
@@ -13,27 +14,31 @@ class Processing:
 
     def __call__(self, image):
 
-        if(self.denoising):
-            image = self.denoise(image)
         if(self.normalization):
             image = self.normalize(image)
         if(self.use_grayscale):
             image = self.grayscale(image)
+        if(self.denoising):
+            image = self.denoise(image)
         if(self.enhance_contrast):
             image = self.contrast(image)
-        if(self.thresholding):
-            image = self.threshold(image)
         if(self.rotation):
             image = self.rotate(image)
+        if(self.thresholding):
+            image = self.threshold(image)
         if(self.use_grayscale):
             image =  cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
         return image
 
     def grayscale(self, image):
-        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) #statt COLOR_RGB2GRAY
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        return gray
+        return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) #statt COLOR_RGB2GRAY
     
     def denoise(self, image):
-        return cv2.GaussianBlur(image, (5, 5), 0)
+        #return cv2.fastNlMeansDenoising(image, h=10, templateWindowSize=7, searchWindowSize=21)
+        return cv2.GaussianBlur(image, (7, 7), sigmaX=1)
     
     def normalize(self, image):
         return cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX)
@@ -43,8 +48,8 @@ class Processing:
         return clahe.apply(image)
     
     def threshold(self, image):
-        #return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
-        _, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
+        return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
+        #_, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
         return image
 
     def rotate(self, image):
