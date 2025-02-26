@@ -307,10 +307,10 @@ def predict_from_video(config):
 
 
 # UTILS _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-def crop_image(image, box, offset=5):
+def crop_image(image, box, offset=10):
     x1, y1, x2, y2 = map(int, box.xyxy[0])
     # Entferne einen kleinen Rand am linken Rand (offset)
-    return image[y1:y2, x1+offset:x2, :].copy()
+    return image[y1:y2, x1+((x2-x1)//offset):x2, :].copy()
 
 
 def show_image(img: np.ndarray, plate_image: np.ndarray, predicted_text: str, correct_label: str, box, ax):

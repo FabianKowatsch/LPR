@@ -16,8 +16,8 @@ image_processing:
   grayscale: True
   denoising: True
   normalize: True
-  contrast: False
+  contrast: True
   thresholding: False
   threshold_value: 125
-  rotation: False
+  rotation: True
   max_rotation_angle: 15

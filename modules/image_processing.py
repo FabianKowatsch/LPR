@@ -13,12 +13,12 @@ class Processing:
 
     def __call__(self, image):
 
-        if(self.use_grayscale):
-            image = self.grayscale(image)
         if(self.denoising):
             image = self.denoise(image)
         if(self.normalization):
             image = self.normalize(image)
+        if(self.use_grayscale):
+            image = self.grayscale(image)
         if(self.enhance_contrast):
             image = self.contrast(image)
         if(self.thresholding):
