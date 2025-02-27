@@ -2,6 +2,8 @@ from torchvision import transforms as T
 import cv2
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan import RealESRGANer
+from scipy.ndimage import zoom
+import numpy as np
 
 class Upscaler:
     def __init__(self, config):
@@ -31,7 +33,7 @@ class Upscaler:
     
     def bilinear(self, image):
         h, w, _ = image.shape
-        return cv2.resize(image, (w * self.scale_factor, h * self.scale_factor), interpolation=cv2.INTER_LINEAR)
+        return cv2.resize(image, (w * self.scale_factor, h * self.scale_factor), interpolation=cv2.INTER_LINEAR, )
     
     def lanczos4(self, image):
         h, w, _ = image.shape

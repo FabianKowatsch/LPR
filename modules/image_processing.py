@@ -14,12 +14,12 @@ class Processing:
 
     def __call__(self, image):
 
+        if(self.denoising):
+            image = self.denoise(image)
         if(self.normalization):
             image = self.normalize(image)
         if(self.use_grayscale):
             image = self.grayscale(image)
-        if(self.denoising):
-            image = self.denoise(image)
         #image = self.sharpen(image)
         if(self.enhance_contrast):
             image = self.contrast(image)
@@ -37,11 +37,12 @@ class Processing:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
         return gray
-        return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) #statt COLOR_RGB2GRAY
+        #return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) #statt COLOR_RGB2GRAY
     
     def denoise(self, image):
         #return cv2.fastNlMeansDenoising(image, h=10, templateWindowSize=7, searchWindowSize=21)
-        return cv2.GaussianBlur(image, (7, 7), sigmaX=1)
+        return cv2.bilateralFilter(image, 7, 1, 1)
+        #return cv2.GaussianBlur(image, (7, 7), sigmaX=1)
     
     def sharpen(self, image):
         # Schärfungsfilter zum Hervorheben von Details
@@ -58,7 +59,7 @@ class Processing:
         return clahe.apply(image)
     
     def threshold(self, image):
-        return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 0.2)
+        return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_TOZERO, 11, 0.2)
         #_, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
         return image
 
