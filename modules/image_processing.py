@@ -20,14 +20,17 @@ class Processing:
             image = self.grayscale(image)
         if(self.denoising):
             image = self.denoise(image)
+        #image = self.sharpen(image)
         if(self.enhance_contrast):
             image = self.contrast(image)
         if(self.rotation):
             image = self.rotate(image)
         if(self.thresholding):
             image = self.threshold(image)
+        #image = cv2.Canny(image, 50, 150)
         if(self.use_grayscale):
             image =  cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+
         return image
 
     def grayscale(self, image):
@@ -39,6 +42,13 @@ class Processing:
     def denoise(self, image):
         #return cv2.fastNlMeansDenoising(image, h=10, templateWindowSize=7, searchWindowSize=21)
         return cv2.GaussianBlur(image, (7, 7), sigmaX=1)
+    
+    def sharpen(self, image):
+        # Schärfungsfilter zum Hervorheben von Details
+        kernel = np.array([[0, -1, 0],
+                           [-1, 4, -1],
+                           [0, -1, 0]])
+        return cv2.filter2D(image, -1, kernel)
     
     def normalize(self, image):
         return cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX)
@@ -97,3 +107,30 @@ class Processing:
         aligned_image = cv2.warpAffine(image, rotation, (image.shape[1], image.shape[0]))
 
         return aligned_image
+    
+
+    def find_license_plate_corners(self, image):
+ 
+        # 1. Vorverarbeitung: In Graustufen umwandeln und Rauschen reduzieren
+        blurred = cv2.GaussianBlur(image, (5, 5), 0)
+
+        # 2. Kantenerkennung mit Canny
+        edged = cv2.Canny(blurred, 50, 200)
+
+        # 3. Konturfindung
+        contours, _ = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Sortiere Konturen nach Fläche (absteigend)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+
+        for contour in contours:
+            # 4. Approximierung der Kontur
+            peri = cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+
+            # Wenn die approximierte Kontur 4 Punkte hat, nehmen wir an, dass dies das Kennzeichen ist
+            if len(approx) == 4:
+                return approx.reshape(4, 2)
+    
+        return None
+
+

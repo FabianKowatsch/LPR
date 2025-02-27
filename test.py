@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import yaml
 import torch
 import re
+import unicodedata
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
@@ -53,7 +54,7 @@ def load_images_and_labels(directory_path):
 
 def test(config):
     images = load_images_and_labels(config["data_path"])
-    detector = LPD_Module(config["lpd_checkpoint_path"])
+    detector = LPD_Module(config["lpd_checkpoint_path"], config["verbose"])
     ocr = OCR_Module(config["recognizer"])
     upscaler = Upscaler(config["upscaler"])
     image_processing = Processing(config["image_processing"])
@@ -91,11 +92,13 @@ def test(config):
                 # Text recognition
                 lp_text = ocr(lp_image)
 
-                # Filter text, replace some symbols with spaces
-                text_filtered = re.sub(r'[^A-Z0-9]', '', lp_text)
+                lp_text_normalized = normalize_text(lp_text)
+                text_filtered = re.sub(r'[^A-Z0-9]', '', lp_text_normalized)
+                text_filtered = re.sub(r'([A-Z0-9])\1{4}', lambda m: m.group(1) * 4, text_filtered)
 
-                gt = re.sub(r'[^A-Z0-9]', '', image_and_label[1])
-                
+                gt_normalized = normalize_text(image_and_label[1])
+                gt = re.sub(r'[^A-Z0-9]', '', gt_normalized)
+           
                 print("Predicted: ", text_filtered)
                 print("GT: ", gt)
                 print("Correct: ", gt == text_filtered)
@@ -135,10 +138,11 @@ def test(config):
     else:
         print("No detections were processed.")
 
-def crop_image(image, box, offset=10):
+def crop_image(image, box, offset_left=13, offset_right=30):
+    #offset_left=13, offset_right=30
     x1, y1, x2, y2 = map(int, box.xyxy[0])
     # Entferne einen kleinen Rand am linken Rand (offset)
-    return image[y1:y2, x1+((x2-x1)//offset):x2, :].copy()
+    return image[y1:y2, (x1 + ((x2-x1)//offset_left)) : (x2 - ((x2-x1)//offset_right)), :].copy()
 
 def show_image(img: np.ndarray, plate_image:np.ndarray, text: str, box, ax):
 
@@ -164,6 +168,18 @@ def show_image(img: np.ndarray, plate_image:np.ndarray, text: str, box, ax):
     plt.draw()
     plt.show()
     #plt.pause(1.0)
+
+def normalize_text(text):
+    replacements = {
+        'Ä': 'A', 'Ö': 'O', 'Ü': 'U',
+        'ä': 'A', 'ö': 'O', 'ü': 'U',
+        'ß': 'SS'
+    }
+    for umlaut, replacement in replacements.items():
+        text = text.replace(umlaut, replacement)
+    return text
+
+
 
 
 
