@@ -225,3 +225,15 @@ input[type="file"]::file-selector-button:hover {
 .result-item p {
     margin: 5px 0;
 }
+
+.result-headline {
+    font-size: 1em;
+    color: #ffffff;
+    margin: 2rem;
+    text-align: center;
+}
+.recognizer {
+    color: #007bff;
+    /* Example color: blue */
+    font-weight: bold;
+}

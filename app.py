@@ -4,12 +4,15 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.utils import secure_filename
 from main import predict, predict_from_video  # Function for license plate recognition
 import traceback
+from flask_socketio import SocketIO
 
 # Flask App Configuration
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads/'
 app.config['EXAMPLES_FOLDER'] = 'static/examples/'
 app.secret_key = 'your_secret_key'
+
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Ensure required directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -82,15 +85,18 @@ def upload_file():
         flash('Configuration file not found.', 'danger')
         return jsonify({'error': 'Configuration file not found.'}), 400
 
-    # Update configuration with file path and recognizer choice
     config["data_path"] = file_path
     config["recognizer"]["type"] = recognizer_choice
+
+    def progress_callback(progress):
+        # Emit progress updates to the client
+        socketio.emit('progress', {'progress': progress})
 
     # Perform inference
     try:
         if is_video:
             config["frame_interval"] = frame_interval
-            results = predict_from_video(config)
+            results = predict_from_video(config, progress_callback=progress_callback)
             flash(f'Recognizer: {recognizer_choice}. Video inference completed.', 'success')
         else:
             results = predict(config)
@@ -111,5 +117,5 @@ def upload_file():
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    socketio.run(app, debug=True, host='0.0.0.0', port=8080)
     print("Flask app started on http://0.0.0.0:8080")

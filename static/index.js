@@ -1,5 +1,19 @@
 // Function to select an example image
 function selectExample(element) {
+
+    const fileInput = document.getElementById("fileInput");
+    // Falls bereits eine Datei hochgeladen wurde, frage den Nutzer
+    if (fileInput.files.length > 0) {
+      const useExample = confirm(
+        "A file has already been uploaded. Do you want to remove the file and select the example instead?"
+      );
+      if (!useExample) {
+        return; // Wenn der Nutzer ablehnt, nichts ändern
+      }
+      // Datei entfernen
+      fileInput.value = "";
+    }
+
     const exampleSelect = document.getElementById("exampleSelect");
     const exampleImages = document.querySelectorAll(".example-img");
 
@@ -10,7 +24,6 @@ function selectExample(element) {
     exampleImages.forEach((img) => img.classList.remove("selected"));
     element.classList.add("selected");
 }
-
 
 
 let licensePlates = [];
@@ -80,57 +93,72 @@ function addLicensePlate(plateItem) {
 
 
 function runInference() {
-    const fileInput = document.getElementById("fileInput");
-    const exampleSelect = document.getElementById("exampleSelect");
-    const recognizerSelect = document.getElementById("recognizerSelect");
-    const frameInterval = document.getElementById("frameInterval");
-    const errorMessage = document.getElementById("errorMessage");
+  const fileInput = document.getElementById("fileInput");
+  const exampleSelect = document.getElementById("exampleSelect");
+  const recognizerSelect = document.getElementById("recognizerSelect");
+  const frameInterval = document.getElementById("frameInterval");
+  const errorMessage = document.getElementById("errorMessage");
 
-    if (
-        (!fileInput.files.length && !exampleSelect.value) ||
-        !recognizerSelect.value
-    ) {
-        errorMessage.classList.remove("d-none");
+  if (
+    (!fileInput.files.length && !exampleSelect.value) ||
+    !recognizerSelect.value
+  ) {
+    errorMessage.classList.remove("d-none");
+    return;
+  } else {
+    errorMessage.classList.add("d-none");
+  }
+
+  const file = fileInput.files[0];
+  const examplePath = exampleSelect.value || null;
+  const recognizer = recognizerSelect.value;
+  const frameIntervalValue = frameInterval.value || 1;
+
+  let localImageUrl = null;
+  if (file) localImageUrl = file ? URL.createObjectURL(file) : null;
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("example", examplePath);
+  formData.append("recognizer", recognizer);
+  formData.append("frameInterval", frameIntervalValue);
+
+  // Progress nur bei Video anzeigen
+  if (file && file.type.startsWith("video/")) {
+    document.getElementById("progressContainer").style.display = "block";
+  } else {
+    document.getElementById("progressContainer").style.display = "none";
+  }
+
+  // Send POST request to /upload endpoint
+  fetch("/upload", {
+    method: "POST",
+    body: formData,
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      // check if the response contains an error message
+      if (data.error) {
+        alert(data.error);
         return;
-    } else {
-        errorMessage.classList.add("d-none");
-    }
-
-    const file = fileInput.files[0];
-    const examplePath = exampleSelect.value || null;
-    const recognizer = recognizerSelect.value;
-    const frameIntervalValue = frameInterval.value || 1;
-
-    let localImageUrl = null;
-    if (file)
-        localImageUrl = file ? URL.createObjectURL(file) : null;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("example", examplePath);
-    formData.append("recognizer", recognizer);
-    formData.append("frameInterval", frameIntervalValue);
-
-    fetch("/upload", {
-        method: "POST",
-        body: formData,
+      }
+      console.log("Upload success:", data);
+      processResults({
+        file_url: localImageUrl || data.file_url,
+        filename: data.filename,
+        results: data.results,
+      });
     })
-        .then(response => response.json())
-        .then(data => {
-            // check if the response contains an error message
-            if (data.error) {
-                alert(data.error);
-                return;
-            }
-            console.log("Upload success:", data);
-            processResults({ file_url: localImageUrl || data.file_url, filename: data.filename, results: data.results });
-        })
-        .catch(error => {
-            console.error("Upload error:", error);
-        });
+    .catch((error) => {
+      console.error("Upload error:", error);
+    });
+
 }
 
+
+
 function processResults(results) {
+  document.getElementById("progressContainer").style.display = "none";
   const uploadContainer = document.getElementById("uploadContainer");
   const resultContainer = document.getElementById("resultContainer");
   const imageContainer = document.getElementById("imageContainer");
@@ -221,15 +249,51 @@ function processResults(results) {
     imageContainer.appendChild(mediaWrapper);
   }
 
+  // Back to Home Button hinzufügen
+  const backButton = document.createElement("a");
+  backButton.href = "/";
+  backButton.className = "btn btn-primary w-100 mt-4";
+  backButton.textContent = " ← Upload Another File";
+  resultsList.appendChild(backButton);
+
+  // Mention Filename and Recognizer
+  const recognizerSelect = document.getElementById("recognizerSelect");
+  const recognizer = recognizerSelect.value;
+  const headline = document.createElement("h4");
+  headline.className = "result-headline";
+  headline.innerHTML = `Detection complete: "<span class="filename">${results.filename}</span>" processed by <span class="recognizer">${recognizer}</span>.`;
+  resultsList.appendChild(headline);
+
   // Add license plate detection results
   results.results.forEach((item) => {
     addLicensePlate(item);
   });
 
   const frameRate = results.results[0]?.fps || 30;
+
+  // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
+  let hasValidPlate = false;
+
   // Loop through inference results and create result items
   licensePlates.forEach((plate) => {
+    // 1. Prüfen, ob plate.filteredText existiert und nicht leer ist
+    if (!plate.filteredText || plate.filteredText.trim() === "") {
+      return; // Überspringen
+    }
+
+    // 2. Prüfen, ob das Kennzeichen nur eine Fehlermeldung ist (falls du so etwas abfängst)
+    //    z. B. "OCR processing failed: No valid text detected"
+    //    Wenn deine Fehlertexte immer gleich aufgebaut sind, kannst du z. B. so filtern:
+    if (plate.filteredText.includes("OCR processing failed")) {
+      return; // Überspringen
+    }
+
+    // Wenn wir hier sind, haben wir ein valides Kennzeichen.
+    hasValidPlate = true;
+
     console.log("Number of images:", plate.images.length);
+
+    // Ergebnis-Container (ein "Kästchen" pro Kennzeichen)
     const resultItem = document.createElement("div");
     resultItem.classList.add("result-item");
 
@@ -248,30 +312,24 @@ function processResults(results) {
     const textElement = document.createElement("p");
     textElement.innerHTML = `<strong>Detected:</strong> ${plate.lpText}`;
     resultItem.appendChild(textElement);
+    console.log("BoundingBoxes:", plate.boundingBoxes);
 
     // Create a text element for the filtered license plate text
     const filteredTextElement = document.createElement("p");
     filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
     resultItem.appendChild(filteredTextElement);
 
-    // Check if filename display already exists
-    const existingFilenameDisplay =
-      resultContainer.querySelector(".filename-display");
+    // // Check if filename display already exists
+    // const existingFilenameDisplay =
+    //   resultContainer.querySelector(".filename-display");
 
-    // If it doesn't exist, create and add it
-    if (!existingFilenameDisplay) {
-      const filenameDisplay = document.createElement("div");
-      filenameDisplay.classList.add("filename-display");
-      filenameDisplay.innerHTML = `<strong>File:</strong> ${results.filename}`;
-      resultContainer.insertBefore(filenameDisplay, imageContainer);
-    }
-
-    // Back to Home Button hinzufügen
-    const backButton = document.createElement("a");
-    backButton.href = "/";
-    backButton.className = "btn btn-primary w-100 mt-4";
-    backButton.textContent = "Upload Another File";
-    resultsList.appendChild(backButton);
+    // // If it doesn't exist, create and add it
+    // if (!existingFilenameDisplay) {
+    //   const filenameDisplay = document.createElement("div");
+    //   filenameDisplay.classList.add("filename-display");
+    //   filenameDisplay.innerHTML = `<strong>File:</strong> ${results.filename}`;
+    //   resultContainer.insertBefore(filenameDisplay, imageContainer);
+    // }
 
     // Add event listener for clicking result items
     resultItem.style.cursor = "pointer";
@@ -288,12 +346,34 @@ function processResults(results) {
       }
     });
 
-    // mediaElement.addEventListener("loadedmetadata", () => {
-    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate);
-    // });
+    if (isVideo) {
+      mediaElement.addEventListener("loadedmetadata", () => {
+        highlightBoundingBoxes(
+          licensePlates,
+          bboxOverlay,
+          mediaElement,
+          frameRate
+        );
+      });
+    } else {
+      mediaElement.addEventListener("load", () => {
+        highlightBoundingBoxes(
+          licensePlates,
+          bboxOverlay,
+          mediaElement,
+          frameRate
+        );
+      });
+    }
 
     resultsList.appendChild(resultItem);
   });
+  // Falls keine validen Kennzeichen angezeigt wurden, kurze Meldung ausgeben
+  if (!hasValidPlate) {
+    const noPlatesMsg = document.createElement("p");
+    noPlatesMsg.textContent = "No valid license plates recognized.";
+    resultsList.appendChild(noPlatesMsg);
+  }
 }
 
 /**
@@ -351,42 +431,52 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         const currentFrame = Math.ceil(media.currentTime * framerate);
 
         plates.forEach((plate, index) => {
-            if (currentFrame < plate.frames[0]
-                || currentFrame > plate.frames[plate.frames.length - 1]
+          // Bounding Box nur anzeigen, wenn filteredText nicht leer ist
+          if (!plate.filteredText || plate.filteredText.trim() === "") {
+            return; // diesen Plate überspringen
+          }
+          
+          if (
+            currentFrame < plate.frames[0] ||
+            currentFrame > plate.frames[plate.frames.length - 1]
+          ) {
+            return;
+          }
+
+          // Find the closest bounding boxes for interpolation
+          let previousIndex = null;
+          let nextIndex = null;
+
+          for (let i = 0; i < plate.frames.length - 1; i++) {
+            if (
+              plate.frames[i] <= currentFrame &&
+              plate.frames[i + 1] >= currentFrame
             ) {
-                return;
+              previousIndex = i;
+              nextIndex = i + 1;
+              break;
             }
+          }
+          console.log(previousIndex, nextIndex);
 
-            // Find the closest bounding boxes for interpolation
-            let previousIndex = null;
-            let nextIndex = null;
+          if (nextIndex === null || previousIndex === null) {
+            return;
+          }
 
-            for (let i = 0; i < plate.frames.length - 1; i++) {
-                if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
-                    previousIndex = i;
-                    nextIndex = i + 1;
-                    break;
-                }
-            }
-            console.log(previousIndex, nextIndex);
+          const previousFrame = plate.frames[previousIndex];
+          const nextFrame = plate.frames[nextIndex];
 
-            if (nextIndex === null || previousIndex === null) {
-                return;
-            }
+          const distance = Math.abs(nextFrame - previousFrame);
+          const currentDistance = Math.abs(currentFrame - previousFrame);
+          const time = currentDistance / distance;
 
-            const previousFrame = plate.frames[previousIndex];
-            const nextFrame = plate.frames[nextIndex];
+          const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
+          const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
 
-            const distance = Math.abs(nextFrame - previousFrame);
-            const currentDistance = Math.abs(currentFrame - previousFrame);
-            const time = currentDistance / distance;
-
-            const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
-            const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
-
-            const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
-            showBoundingBox(bbox, plate.filteredText);
+          const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+          showBoundingBox(bbox, plate.filteredText);
         });
+        
     }
 
     let animationFrameId = null;
@@ -419,14 +509,25 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         media.addEventListener('timeupdate', () => {
             showCurrentBoundingBoxes();
         });
+        
     } else {
-        media.addEventListener('load', () => {
-            for (let i = 0; i < plates.length; i++) {
-                console.log(plates[i].lpText);
-                const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-                showBoundingBox(bbox, plates[i].filteredText);
-            }
-        })
+      // Für Bilder: Wenn das Bild bereits geladen ist, sofort ausführen,
+      // sonst "load"-Event abwarten.
+      if (media.complete) {
+        for (let i = 0; i < plates.length; i++) {
+          console.log(plates[i].lpText);
+          const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+          showBoundingBox(bbox, plates[i].filteredText);
+        }
+      } else {
+        media.addEventListener("load", () => {
+          for (let i = 0; i < plates.length; i++) {
+            console.log(plates[i].lpText);
+            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+            showBoundingBox(bbox, plates[i].filteredText);
+          }
+        });
+      }
     }
 
     window.addEventListener('resize', () => {
@@ -480,4 +581,3 @@ function interpolateBoundingBoxes(bbox1, bbox2, t) {
         height: bbox1.height + (bbox2.height - bbox1.height) * t
     };
 }
-

@@ -228,14 +228,15 @@ def predict(config):
     
 #     return processed_results
 
-def predict_from_video(config):
+def predict_from_video(config, progress_callback=None):
     video_path = config["data_path"]
     cap = cv2.VideoCapture(video_path)
     
     if not cap.isOpened():
         raise ValueError(f"Cannot open video file: {video_path}")
 
-    detector = LPD_Module(config["lpd_checkpoint_path"])
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    detector = LPD_Module(config["lpd_checkpoint_path"], verbose=config["verbose"])
     ocr = OCR_Module(config["recognizer"])
     upscaler = Upscaler(config["upscaler"])
     image_processing = Processing(config["image_processing"])
@@ -256,6 +257,10 @@ def predict_from_video(config):
             break  # Stop when the video ends
 
         if frame_count % frame_interval == 0:
+            if progress_callback:
+        # Using processed frames over total frames (approximate)
+                progress = int((frame_count / total_frames) * 100)
+                progress_callback(progress)
             boxes = detector(frame)
             for j, box in enumerate(boxes):
                 try:
@@ -297,6 +302,7 @@ def predict_from_video(config):
                         "lp_text": lp_text,
                         "text_filtered": text_filtered
                     })
+
                 except Exception as e:
                     print(f"Error processing plate in frame {frame_count}: {e}")
                     continue
