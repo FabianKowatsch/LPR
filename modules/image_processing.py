@@ -12,7 +12,7 @@ class Processing:
         self.rotation = config["rotation"]
         self.max_angle = config["max_rotation_angle"]
 
-    def __call__(self, image):
+    def __call__(self, image, box):
 
         if(self.denoising):
             image = self.denoise(image)
@@ -24,7 +24,7 @@ class Processing:
         if(self.enhance_contrast):
             image = self.contrast(image)
         if(self.rotation):
-            image = self.rotate(image)
+            image = self.rotate(image, box)
         if(self.thresholding):
             image = self.threshold(image)
         #image = cv2.Canny(image, 50, 150)
@@ -63,51 +63,65 @@ class Processing:
         #_, image = cv2.threshold(image, self.threshold_value, 255, cv2.THRESH_BINARY)
         return image
 
-    def rotate(self, image):
-        grayscale = image if self.use_grayscale else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    def rotate(self, image, box):
 
-        # Edge detection
-        edges = cv2.Canny(grayscale, 50, 150)
+        height, width = image.shape[:2]
 
-        # Find contours
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        x_min, x_max, y_min, y_max = get_min_max_values(box)
+        x1, y1, x2, y2, x3, y3, x4, y4 = map(float, box.xyxyxyxy[0].flatten())
+        corners = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+        corners_px = np.array(corners, dtype=np.float32)
+        corners = order_corners(corners_px)
+        (x1, y1), (x2, y2), (x3, y3), (x4, y4) = corners
 
-        if not contours:
-            return image
-        
-        valid_contours = []
+        # Compute widths and heights of the edges
+        w1 = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+        w2 = np.sqrt((x3 - x4)**2 + (y3 - y4)**2)
+        h1 = np.sqrt((x3 - x2)**2 + (y3 - y2)**2)
+        h2 = np.sqrt((x4 - x1)**2 + (y4 - y1)**2)
 
-        for contour in contours:
-            # Get the bounding rectangle of the contour
-            x, y, w, h = cv2.boundingRect(contour)
-        
-            # Aspect ratio filtering: the contour should be rectangular
-            aspect_ratio = float(w) / h
-        
-            # Only consider contours with an appropriate aspect ratio
-            if 2 < aspect_ratio < 6:  # Adjust these values according to your needs
-                valid_contours.append(contour)
+        # The final width is the max of the two computed widths
+        max_width = max(int(w1), int(w2))
+        # The final height is the max of the two computed heights
+        max_height = max(int(h1), int(h2))
 
-        if not valid_contours:
-            return image
-        
-        # Select the largest contour
-        c = max(contours, key=cv2.contourArea)
+        # Destination points in the target image (top-left, top-right, bottom-right, bottom-left)
+        dst_pts = np.array([
+            [0, 0],
+            [max_width - 1, 0],
+            [max_width - 1, max_height - 1],
+            [0, max_height - 1]
+        ], dtype=np.float32)
 
-        rect = cv2.minAreaRect(c)
-        angle = rect[2]
+        # Compute perspective transform matrix
+        M = cv2.getPerspectiveTransform(corners, dst_pts)
 
-        # If the angle is too big, the contour was probably wrong
-        if abs(angle) > self.max_angle:
-            return image
+        # Warp the image
+        warped = cv2.warpPerspective(image, M, (max_width, max_height))
 
-        #h,w,_ = image.shape
+        return warped
 
-        rotation = cv2.getRotationMatrix2D(rect[0], angle, 1.0)
+        # src_pts = np.array([
+        #     [x1 - x_min, y1 - y_min], 
+        #     [x2 - x_min, y2 - y_min],
+        #     [x3 - x_min, y3 - y_min],
+        #     [x4 - x_min, y4 - y_min] 
+        # ], dtype=np.float32)
 
-        aligned_image = cv2.warpAffine(image, rotation, (image.shape[1], image.shape[0]))
+        # dst_pts = np.array([
+        #     [width, height],
+        #     [width, 0],
+        #     [0, 0],
+        #     [0, height]
+        # ], dtype=np.float32)
 
-        return aligned_image
+        # Compute perspective transform matrix
+        matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
+
+        # Apply warp perspective
+        warped_image = cv2.warpPerspective(image, matrix, (int(width), int(height)))
+
+        return warped_image
     
 
     def find_license_plate_corners(self, image):
@@ -133,5 +147,27 @@ class Processing:
                 return approx.reshape(4, 2)
     
         return None
+
+def get_min_max_values(box):
+    x1, y1, x2, y2, x3, y3, x4, y4 = map(int, box.xyxyxyxy[0].flatten())
+
+    ys = [y1, y2, y3, y4]
+    xs = [x1, x2, x3, x4]
+    return  np.min(xs),  np.max(xs),  np.min(ys),  np.max(ys)
+
+def order_corners(corners):
+
+    pts = corners.copy()
+    # Compute centroid
+    cx, cy = np.mean(pts, axis=0)
+    print("pts: ", pts)
+    # Compute angle of each point w.r.t. the centroid
+    angles = np.arctan2(pts[:,1] - cy, pts[:,0] - cx)
+
+    # Sort points by angle from -pi to pi
+    sorted_idx = np.argsort(angles)
+    pts_sorted = pts[sorted_idx]
+
+    return pts_sorted
 
 

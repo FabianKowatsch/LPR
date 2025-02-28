@@ -141,7 +141,7 @@ def predict(config):
                 lp_image = upscaler(lp_image)
 
                 # Processing
-                lp_image = image_processing(lp_image)
+                lp_image = image_processing(lp_image, box)
 
 
                 # Save the cropped image
@@ -155,7 +155,7 @@ def predict(config):
                 # Filter text, replace some symbols with spaces
                 text_filtered =  re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
 
-                box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
+                box_serializable = box.xyxyxyxy.flatten().cpu().numpy().tolist() if hasattr(box, 'xyxyxyxy') else str(box)
 
                 # If OCR failed, add only the error and skip the filtering
                 if "OCR failed" in lp_text:
@@ -176,10 +176,10 @@ def predict(config):
                         "text_filtered": text_filtered
                     })
             except Exception as e:
-                box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
-
+                box_serializable = box.xyxyxyxy.flatten().cpu().numpy().tolist() if hasattr(box, 'xyxyxyxy') else str(box)
+                print(e)
                 results.append({
-                    "image": image,
+                    "image": cropped_image_path,
                     "box": box_serializable,
                     "error": f"OCR processing failed: {str(e)}"
                 })
@@ -274,7 +274,7 @@ def predict_from_video(config, progress_callback=None):
                     lp_image = upscaler(lp_image)
 
                     # Process
-                    lp_image = image_processing(lp_image)
+                    lp_image = image_processing(lp_image, box)
 
                     # OCR
                     lp_text = ocr(lp_image)
@@ -290,7 +290,7 @@ def predict_from_video(config, progress_callback=None):
                     seconds = int(seconds % 60)
                     time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-                    box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
+                    box_serializable = box.xyxyxyxy.flatten().cpu().numpy().tolist() if hasattr(box, 'xyxyxyxy') else str(box)
 
                     # Append results with cropped image
                     results.append({
@@ -316,8 +316,16 @@ def predict_from_video(config, progress_callback=None):
 
 
 # UTILS _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+def get_min_max_values(box):
+    x1, y1, x2, y2, x3, y3, x4, y4 = map(int, box.xyxyxyxy[0].flatten())
+    ys = [y1, y2, y3, y4]
+    xs = [x1, x2, x3, x4]
+    return  np.min(xs),  np.max(xs),  np.min(ys),  np.max(ys)
 def crop_image(image, box, offset_left=13, offset_right=30):
-    x1, y1, x2, y2 = map(int, box.xyxy[0])
+    x1, x2, y1, y2 = get_min_max_values(box)
+    return image[y1:y2, x1:x2].copy()
+    #x1, y1, x2, y2 = map(int, box.xyxy[0])
     # Entferne einen kleinen Rand am linken Rand (offset)
     return image[y1:y2, (x1 + ((x2-x1)//offset_left)) : (x2 - ((x2-x1)//offset_right)), :].copy()
     
@@ -366,7 +374,7 @@ def detect_plate_corners(roi):
 
 def show_image(img: np.ndarray, plate_image: np.ndarray, predicted_text: str, correct_label: str, box, ax):
     # Draw red outlines
-    x1, y1, x2, y2 = map(int, box.xyxy[0])
+    x1, x2, y1, y2 = get_min_max_values(box)
     image = img.copy()
     image[y1, x1:x2 - 1, 0] = 255
     image[y2 - 1, x1:x2 - 1, 0] = 255

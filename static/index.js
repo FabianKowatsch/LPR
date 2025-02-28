@@ -1,94 +1,94 @@
 // Function to select an example image
 function selectExample(element) {
 
-    const fileInput = document.getElementById("fileInput");
-    // Falls bereits eine Datei hochgeladen wurde, frage den Nutzer
-    if (fileInput.files.length > 0) {
-      const useExample = confirm(
-        "A file has already been uploaded. Do you want to remove the file and select the example instead?"
-      );
-      if (!useExample) {
-        return; // Wenn der Nutzer ablehnt, nichts ändern
-      }
-      // Datei entfernen
-      fileInput.value = "";
+  const fileInput = document.getElementById("fileInput");
+  // Falls bereits eine Datei hochgeladen wurde, frage den Nutzer
+  if (fileInput.files.length > 0) {
+    const useExample = confirm(
+      "A file has already been uploaded. Do you want to remove the file and select the example instead?"
+    );
+    if (!useExample) {
+      return; // Wenn der Nutzer ablehnt, nichts ändern
     }
+    // Datei entfernen
+    fileInput.value = "";
+  }
 
-    const exampleSelect = document.getElementById("exampleSelect");
-    const exampleImages = document.querySelectorAll(".example-img");
+  const exampleSelect = document.getElementById("exampleSelect");
+  const exampleImages = document.querySelectorAll(".example-img");
 
-    // Set the hidden input value to the selected example's filename
-    exampleSelect.value = element.getAttribute("data-filename");
+  // Set the hidden input value to the selected example's filename
+  exampleSelect.value = element.getAttribute("data-filename");
 
-    // Highlight the selected image
-    exampleImages.forEach((img) => img.classList.remove("selected"));
-    element.classList.add("selected");
+  // Highlight the selected image
+  exampleImages.forEach((img) => img.classList.remove("selected"));
+  element.classList.add("selected");
 }
 
 
 let licensePlates = [];
 class LicensePlate {
-    constructor(lpText, filteredText) {
-        this.lpText = lpText;  // License plate text
-        this.filteredText = filteredText;
-        this.images = [];
+  constructor(lpText, filteredText) {
+    this.lpText = lpText;  // License plate text
+    this.filteredText = filteredText;
+    this.images = [];
 
-        this.boundingBoxes = [];  // Array to store bounding boxes
-        this.frames = [];      // Array to store frames where the license plate is detected
-    }
+    this.boundingBoxes = [];  // Array to store bounding boxes
+    this.frames = [];      // Array to store frames where the license plate is detected
+  }
 
-    // Add a frame and corresponding bounding box
-    addDetection(image, box, frame) {
-        this.images.push(image);
-        this.boundingBoxes.push(box);
-        this.frames.push(frame);
-    }
+  // Add a frame and corresponding bounding box
+  addDetection(image, box, frame) {
+    this.images.push(image);
+    this.boundingBoxes.push(box);
+    this.frames.push(frame);
+  }
 
-    // Get the latest frame and bounding box
-    getLatestDetection() {
-        if (this.frames.length > 0) {
-            return {
-                image: this.images[this.images.length - 1],
-                frame: this.frames[this.frames.length - 1],
-                bbox: this.boundingBoxes[this.boundingBoxes.length - 1],
-            };
-        }
-        return null;
+  // Get the latest frame and bounding box
+  getLatestDetection() {
+    if (this.frames.length > 0) {
+      return {
+        image: this.images[this.images.length - 1],
+        frame: this.frames[this.frames.length - 1],
+        bbox: this.boundingBoxes[this.boundingBoxes.length - 1],
+      };
     }
+    return null;
+  }
 }
 
 // Function to add a license plate to the list, if it already exists add the frame and bbox
 function addLicensePlate(plateItem) {
-    let existingLicensePlate = null;
+  let existingLicensePlate = null;
 
-    const threshold = 2; // Allow up to 2 character differences
-    // Check if the license plate already exists in the array
-    for (let lp of licensePlates) {
-        // Calculate the Levenshtein distance between the current plate and the existing one
-        const distance = levenshtein(lp.lpText, plateItem.lp_text);
-        // If the distance is below the threshold, consider them as the same plate
-        if (distance <= threshold) {
-            existingLicensePlate = lp;
-            break;
-        }
+  const threshold = 2; // Allow up to 2 character differences
+  // Check if the license plate already exists in the array
+  for (let lp of licensePlates) {
+    // Calculate the Levenshtein distance between the current plate and the existing one
+    const distance = levenshtein(lp.lpText, plateItem.lp_text);
+    // If the distance is below the threshold, consider them as the same plate
+    if (distance <= threshold) {
+      existingLicensePlate = lp;
+      break;
+    }
+  }
+
+  // If license plate exists, add the frame and bbox
+  if (existingLicensePlate) {
+    existingLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
+  } else {
+    // Otherwise, create a new LicensePlate object and add it to the list
+    if (!plateItem.error) {
+      const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered);
+      newLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
+      licensePlates.push(newLicensePlate);
+    } else {
+      const newLicensePlate = new LicensePlate(plateItem.error, plateItem.error);
+      licensePlates.push(newLicensePlate);
     }
 
-    // If license plate exists, add the frame and bbox
-    if (existingLicensePlate) {
-        existingLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
-    } else {
-        // Otherwise, create a new LicensePlate object and add it to the list
-        if(!plateItem.error){
-            const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered);
-            newLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
-            licensePlates.push(newLicensePlate);
-        }else{
-            const newLicensePlate = new LicensePlate(plateItem.error, plateItem.error);
-            licensePlates.push(newLicensePlate);
-        }
+  }
 
-        }
-        
 }
 
 
@@ -383,201 +383,221 @@ function processResults(results) {
  * @param {HTMLMediaElement} media - The media element (image or video).
  */
 function highlightBoundingBoxes(plates, overlay, media, framerate) {
-    function showBoundingBox(bbox, plateID) {
-        // Get media dimensions
-        const mediaRect = media.getBoundingClientRect();
-        const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
-        const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
-
-        console.log(media, mediaRect, media.naturalWidth, media.naturalHeight, media.videoWidth, media.videoHeight);
-
-        // Create bounding box container
-        const bboxContainer = document.createElement("div");
-            bboxContainer.style = `
-            position: absolute;
-            left: ${bbox.x * scaleX}px;
-            top: ${bbox.y * scaleY}px;
-            width: ${bbox.width * scaleX}px;
-            height: ${bbox.height * scaleY}px;
-            outline: 3px solid rgb(191, 10, 70); 
-            background: rgba(191, 10, 70, 0.1);
-            pointer-events: none;
-        `;
-
-        // Create label
-        const label = document.createElement("div");
-        label.innerText = plateID;
-        label.style = `
-            position: absolute;
-            left: -3px; /* Align with outline */
-            top: -28px; /* Adjust based on outline */
-            width: calc(100% + 6px);
-            padding: 4px;
-            background: rgb(191, 10, 70);
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            text-align: center;
-        `;
-
-        // Append label to bounding box
-        bboxContainer.appendChild(label);
-        overlay.appendChild(bboxContainer);
-    }
 
 
-    function showCurrentBoundingBoxes() {
-        overlay.innerHTML = ""; // Clear previous bounding boxes
-        const currentFrame = Math.ceil(media.currentTime * framerate);
+  function showBoundingBox(bbox, plateID, overlay, media) {
+    const mediaRect = media.getBoundingClientRect();
+    const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
+    const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
 
-        plates.forEach((plate, index) => {
-          // Bounding Box nur anzeigen, wenn filteredText nicht leer ist
-          if (!plate.filteredText || plate.filteredText.trim() === "") {
-            return; // diesen Plate überspringen
-          }
-          
-          if (
-            currentFrame < plate.frames[0] ||
-            currentFrame > plate.frames[plate.frames.length - 1]
-          ) {
-            return;
-          }
+    const scaledCoords = [
+      bbox.x1 * scaleX, bbox.y1 * scaleY,
+      bbox.x2 * scaleX, bbox.y2 * scaleY,
+      bbox.x3 * scaleX, bbox.y3 * scaleY,
+      bbox.x4 * scaleX, bbox.y4 * scaleY
+    ];
 
-          // Find the closest bounding boxes for interpolation
-          let previousIndex = null;
-          let nextIndex = null;
+    const clipPath = `polygon(${scaledCoords[0]}px ${scaledCoords[1]}px, 
+                                ${scaledCoords[2]}px ${scaledCoords[3]}px, 
+                                ${scaledCoords[4]}px ${scaledCoords[5]}px, 
+                                ${scaledCoords[6]}px ${scaledCoords[7]}px)`;
 
-          for (let i = 0; i < plate.frames.length - 1; i++) {
-            if (
-              plate.frames[i] <= currentFrame &&
-              plate.frames[i + 1] >= currentFrame
-            ) {
-              previousIndex = i;
-              nextIndex = i + 1;
-              break;
-            }
-          }
-          console.log(previousIndex, nextIndex);
+    const bboxContainer = document.createElement("div");
+    bboxContainer.style = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        clip-path: ${clipPath};
+        background: rgba(191, 10, 70, 0.3);
+        outline: 2px solid rgb(191, 10, 70);
+        pointer-events: none;
+    `;
 
-          if (nextIndex === null || previousIndex === null) {
-            return;
-          }
+    const label = document.createElement("div");
+    label.innerText = plateID;
+    label.style = `
+        position: absolute;
+        left: ${scaledCoords[0]}px;
+        top: ${scaledCoords[1] - 25}px;
+        padding: 2px 5px;
+        background: rgb(191, 10, 70);
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        pointer-events: none;
+    `;
 
-          const previousFrame = plate.frames[previousIndex];
-          const nextFrame = plate.frames[nextIndex];
+    overlay.appendChild(bboxContainer);
+    overlay.appendChild(label);
+  }
 
-          const distance = Math.abs(nextFrame - previousFrame);
-          const currentDistance = Math.abs(currentFrame - previousFrame);
-          const time = currentDistance / distance;
 
-          const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
-          const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+  function showCurrentBoundingBoxes() {
+    overlay.innerHTML = ""; // Clear previous bounding boxes
+    const currentFrame = Math.ceil(media.currentTime * framerate);
 
-          const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
-          showBoundingBox(bbox, plate.filteredText);
-        });
-        
-    }
+    plates.forEach((plate, index) => {
+      // Bounding Box nur anzeigen, wenn filteredText nicht leer ist
+      if (!plate.filteredText || plate.filteredText.trim() === "") {
+        return; // diesen Plate überspringen
+      }
 
-    let animationFrameId = null;
+      if (
+        currentFrame < plate.frames[0] ||
+        currentFrame > plate.frames[plate.frames.length - 1]
+      ) {
+        return;
+      }
 
-    function updateBoundingBoxes() {
-        showCurrentBoundingBoxes();
-        animationFrameId = requestAnimationFrame(updateBoundingBoxes);
-    }
+      // Find the closest bounding boxes for interpolation
+      let previousIndex = null;
+      let nextIndex = null;
 
-    if (media instanceof HTMLVideoElement) {
-        media.addEventListener('play', () => {
-            updateBoundingBoxes();
-        });
+      for (let i = 0; i < plate.frames.length - 1; i++) {
+        if (
+          plate.frames[i] <= currentFrame &&
+          plate.frames[i + 1] >= currentFrame
+        ) {
+          previousIndex = i;
+          nextIndex = i + 1;
+          break;
+        }
+      }
+      console.log(previousIndex, nextIndex);
 
-        media.addEventListener('pause', () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-        });
+      if (nextIndex === null || previousIndex === null) {
+        return;
+      }
 
-        media.addEventListener('seeked', () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-            showCurrentBoundingBoxes();
-        });
+      const previousFrame = plate.frames[previousIndex];
+      const nextFrame = plate.frames[nextIndex];
 
-        media.addEventListener('timeupdate', () => {
-            showCurrentBoundingBoxes();
-        });
-        
+      const distance = Math.abs(nextFrame - previousFrame);
+      const currentDistance = Math.abs(currentFrame - previousFrame);
+      const time = currentDistance / distance;
+
+      const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
+      const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+
+      const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+      showBoundingBox(bbox, plate.filteredText, overlay, media);
+    });
+
+  }
+
+  let animationFrameId = null;
+
+  function updateBoundingBoxes() {
+    showCurrentBoundingBoxes();
+    animationFrameId = requestAnimationFrame(updateBoundingBoxes);
+  }
+
+  if (media instanceof HTMLVideoElement) {
+    media.addEventListener('play', () => {
+      updateBoundingBoxes();
+    });
+
+    media.addEventListener('pause', () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+    });
+
+    media.addEventListener('seeked', () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      showCurrentBoundingBoxes();
+    });
+
+    media.addEventListener('timeupdate', () => {
+      showCurrentBoundingBoxes();
+    });
+
+  } else {
+    // Für Bilder: Wenn das Bild bereits geladen ist, sofort ausführen,
+    // sonst "load"-Event abwarten.
+    if (media.complete) {
+      for (let i = 0; i < plates.length; i++) {
+        console.log(plates[i].lpText);
+        const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+        showBoundingBox(bbox, plate.filteredText, overlay, media);
+      }
     } else {
-      // Für Bilder: Wenn das Bild bereits geladen ist, sofort ausführen,
-      // sonst "load"-Event abwarten.
-      if (media.complete) {
+      media.addEventListener("load", () => {
         for (let i = 0; i < plates.length; i++) {
           console.log(plates[i].lpText);
           const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-          showBoundingBox(bbox, plates[i].filteredText);
+          showBoundingBox(bbox, plate.filteredText, overlay, media);
         }
-      } else {
-        media.addEventListener("load", () => {
-          for (let i = 0; i < plates.length; i++) {
-            console.log(plates[i].lpText);
-            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-            showBoundingBox(bbox, plates[i].filteredText);
-          }
-        });
+      });
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (media instanceof HTMLVideoElement) {
+      showCurrentBoundingBoxes();
+    } else {
+      overlay.innerHTML = ""; // Clear previous bounding boxes
+      for (let i = 0; i < plates.length; i++) {
+        const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+        showBoundingBox(bbox, plate.filteredText, overlay, media);
       }
     }
-
-    window.addEventListener('resize', () => {
-    if (media instanceof HTMLVideoElement) {
-        showCurrentBoundingBoxes();
-    } else {
-        overlay.innerHTML = ""; // Clear previous bounding boxes
-        for (let i = 0; i < plates.length; i++) {
-            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-            showBoundingBox(bbox, plates[i].filteredText);
-        }
-    }
-});
+  });
 }
 
 
 // UTILS_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 // Function to calculate Levenshtein distance
 function levenshtein(a, b) {
-    const tmp = [];
-    for (let i = 0; i <= b.length; i++) tmp[i] = [i];
-    for (let j = 0; j <= a.length; j++) tmp[0][j] = j;
+  const tmp = [];
+  for (let i = 0; i <= b.length; i++) tmp[i] = [i];
+  for (let j = 0; j <= a.length; j++) tmp[0][j] = j;
 
-    for (let i = 1; i <= b.length; i++) {
-        for (let j = 1; j <= a.length; j++) {
-            tmp[i][j] = Math.min(
-                tmp[i - 1][j] + 1,        // Deletion
-                tmp[i][j - 1] + 1,        // Insertion
-                tmp[i - 1][j - 1] + (a[j - 1] === b[i - 1] ? 0 : 1)  // Substitution
-            );
-        }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      tmp[i][j] = Math.min(
+        tmp[i - 1][j] + 1,        // Deletion
+        tmp[i][j - 1] + 1,        // Insertion
+        tmp[i - 1][j - 1] + (a[j - 1] === b[i - 1] ? 0 : 1)  // Substitution
+      );
     }
+  }
 
-    return tmp[b.length][a.length];
+  return tmp[b.length][a.length];
 }
 
-function parseBbox(box) {
-    return {
-        x: box[0],
-        y: box[1],
-        width: box[2] - box[0],
-        height: box[3] - box[1]
-    };
+function parseBbox(bboxArray) {
+  return {
+    x1: bboxArray[0],
+    y1: bboxArray[1],
+    x2: bboxArray[2],
+    y2: bboxArray[3],
+    x3: bboxArray[4],
+    y3: bboxArray[5],
+    x4: bboxArray[6],
+    y4: bboxArray[7]
+  };
 }
+
 
 function interpolateBoundingBoxes(bbox1, bbox2, t) {
-    return {
-        x: bbox1.x + (bbox2.x - bbox1.x) * t,
-        y: bbox1.y + (bbox2.y - bbox1.y) * t,
-        width: bbox1.width + (bbox2.width - bbox1.width) * t,
-        height: bbox1.height + (bbox2.height - bbox1.height) * t
-    };
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+  return {
+    x1: lerp(bbox1.x1, bbox2.x1, t),
+    y1: lerp(bbox1.y1, bbox2.y1, t),
+    x2: lerp(bbox1.x2, bbox2.x2, t),
+    y2: lerp(bbox1.y2, bbox2.y2, t),
+    x3: lerp(bbox1.x3, bbox2.x3, t),
+    y3: lerp(bbox1.y3, bbox2.y3, t),
+    x4: lerp(bbox1.x4, bbox2.x4, t),
+    y4: lerp(bbox1.y4, bbox2.y4, t)
+  };
 }

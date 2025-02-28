@@ -9,6 +9,10 @@ class LPD_Module:
         results = self.model(source=images)
         boxes = []
         for result in results:
+            #xywhr = result.keypoints.xy  # center-x, center-y, width, height, angle (radians)
+            boxes.append(result.obb)
+        return boxes
+        for result in results:
             for box in result.boxes:
                 #plate_box = self.crop_image_tensor(images, box)
                 boxes.append(box)
