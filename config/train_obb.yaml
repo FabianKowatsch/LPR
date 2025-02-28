@@ -1,0 +1,9 @@
+model: checkpoints/pretrained/yolo11n.pt
+data: config/data_obb.yaml
+epochs: 400
+imgsz: 640
+batch: 32
+device: 0
+pretrained: True
+single_cls: True
+val: True

@@ -1,0 +1,6 @@
+names:
+- License Plate
+nc: 1
+train: ../../data/obb/train/images
+test: ../../data/obb/test/images
+val: ../../data/obb/valid/images
