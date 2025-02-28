@@ -2,9 +2,9 @@ import torch
 from ultralytics import YOLO
 
 class LPD_Module:
-    def __init__(self, model_path):
-        self.model = YOLO(model_path)
-
+    def __init__(self, model_path, verbose=False):
+        self.model = YOLO(model_path, verbose=verbose)
+ 
     def __call__(self, images: torch.Tensor):
         results = self.model(source=images)
         boxes = []

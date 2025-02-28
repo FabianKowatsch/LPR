@@ -1,4 +1,4 @@
-model: checkpoints/pretrained/yolo11n.pt
+model: ./checkpoints/pretrained/yolo11n.pt
 data: config/data.yaml
 epochs: 400
 imgsz: 640

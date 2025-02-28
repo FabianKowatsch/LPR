@@ -4,4 +4,5 @@ _MACOSX/
 __MACOSX/
 data/
 static/uploads/
+static/uploads
 .DS_Store
