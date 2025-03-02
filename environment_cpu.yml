@@ -18,3 +18,4 @@ dependencies:
     - pytesseract
     - timm
     - nltk
+    - deep_sort_realtime

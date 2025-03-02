@@ -65,9 +65,12 @@ class OCR_Module:
     def ocr_tesseract(self, image):
         try:
             plate_text = pytesseract.image_to_string(image, config=self.tesseract_config)
+            print(f"Tesseract OCR result: {plate_text}")
             if not plate_text.strip():  # Kein Text erkannt
                 raise ValueError("No text detected.")
-            return plate_text.strip()
+            
+            confidence = 1
+            return plate_text.strip(), confidence
         except Exception as e:
             print(f"Tesseract OCR failed: {e}")  # Debugging-Ausgabe
             return "OCR failed: No text detected or invalid input."
@@ -78,7 +81,9 @@ class OCR_Module:
             results = self.model.readtext(image)
             if not results or len(results) == 0:  # Kein Text erkannt
                 raise ValueError("No text detected.")
-            return " ".join([result[1] for result in results])
+            label = " ".join([result[1] for result in results])
+            confidence = results[0][2]
+            return label, confidence
         except Exception as e:
             print(f"EasyOCR failed: {e}")  # Debugging-Ausgabe
             return "OCR failed: No text detected or invalid input."
@@ -98,7 +103,7 @@ class OCR_Module:
 
             if not label or len(label[0].strip()) == 0:  # Kein Text erkannt
                 raise ValueError("No text detected.")
-            return label[0]
+            return label[0], confidence
         except Exception as e:
             print(f"Parseq OCR failed: {e}")  # Debugging-Ausgabe
             return "OCR failed: No text detected or invalid input."

@@ -15,32 +15,30 @@ function selectExample(element) {
 
 let licensePlates = [];
 class LicensePlate {
-    constructor(lpText, filteredText) {
-        this.lpText = lpText;  // License plate text
-        this.filteredText = filteredText;
+    constructor(trackID) {
+        this.trackID = trackID;
+        this.lpText = "";  // License plate text
+        this.filteredText = "";
+        this.maxConfidence = 0;
+
         this.images = [];
 
-        this.boundingBoxes = [];  // Array to store bounding boxes
+        this.boundingBoxes = [];
         this.frames = [];      // Array to store frames where the license plate is detected
     }
 
     // Add a frame and corresponding bounding box
-    addDetection(image, box, frame) {
+    addDetection(lpText, filteredText, confidence, image, box, frame) {
         this.images.push(image);
         this.boundingBoxes.push(box);
         this.frames.push(frame);
-    }
 
-    // Get the latest frame and bounding box
-    getLatestDetection() {
-        if (this.frames.length > 0) {
-            return {
-                image: this.images[this.images.length - 1],
-                frame: this.frames[this.frames.length - 1],
-                bbox: this.boundingBoxes[this.boundingBoxes.length - 1],
-            };
+        if (confidence > this.maxConfidence) {
+            this.maxConfidence = confidence;
+            this.lpText = lpText;
+            this.filteredText = filteredText;
         }
-        return null;
+
     }
 }
 
@@ -51,10 +49,14 @@ function addLicensePlate(plateItem) {
     const threshold = 2; // Allow up to 2 character differences
     // Check if the license plate already exists in the array
     for (let lp of licensePlates) {
-        // Calculate the Levenshtein distance between the current plate and the existing one
-        const distance = levenshtein(lp.lpText, plateItem.lp_text);
-        // If the distance is below the threshold, consider them as the same plate
-        if (distance <= threshold) {
+        // // Calculate the Levenshtein distance between the current plate and the existing one
+        // const distance = levenshtein(lp.lpText, plateItem.lp_text);
+        // // If the distance is below the threshold, consider them as the same plate
+        // if (distance <= threshold) {
+        //     existingLicensePlate = lp;
+        //     break;
+        // }
+        if (plateItem.track_id === lp.trackID) {
             existingLicensePlate = lp;
             break;
         }
@@ -62,20 +64,34 @@ function addLicensePlate(plateItem) {
 
     // If license plate exists, add the frame and bbox
     if (existingLicensePlate) {
-        existingLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
+        existingLicensePlate.addDetection(
+            plateItem.lp_text,
+            plateItem.text_filtered,
+            plateItem.confidence,
+            plateItem.image,
+            plateItem.box,
+            plateItem.frame || 0
+        );
     } else {
         // Otherwise, create a new LicensePlate object and add it to the list
-        if(!plateItem.error){
-            const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered);
-            newLicensePlate.addDetection(plateItem.image, plateItem.box, plateItem.frame || 0);
+        if (!plateItem.error) {
+            const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered, plateItem.track_id);
+            newLicensePlate.addDetection(
+                plateItem.lp_text,
+                plateItem.text_filtered,
+                plateItem.confidence,
+                plateItem.image,
+                plateItem.box,
+                plateItem.frame || 0
+            );
             licensePlates.push(newLicensePlate);
-        }else{
+        } else {
             const newLicensePlate = new LicensePlate(plateItem.error, plateItem.error);
             licensePlates.push(newLicensePlate);
         }
 
-        }
-        
+    }
+
 }
 
 
@@ -229,7 +245,8 @@ function processResults(results) {
     const frameRate = results.results[0]?.fps || 30;
     // Loop through inference results and create result items
     licensePlates.forEach((plate) => {
-        console.log("Number of images:", plate.images.length);
+        console.log(`Track ID: ${plate.trackID}, Number of images: ${plate.images.length}`);
+
         const resultItem = document.createElement("div");
         resultItem.classList.add("result-item");
 
@@ -276,12 +293,10 @@ function processResults(results) {
             }
         });
 
-        // mediaElement.addEventListener("loadedmetadata", () => {
-        highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
-        // });
-
         resultsList.appendChild(resultItem);
     });
+
+    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
 }
 
 /**
@@ -297,11 +312,9 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
         const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
 
-        console.log(media, mediaRect, media.naturalWidth, media.naturalHeight, media.videoWidth, media.videoHeight);
-
         // Create bounding box container
         const bboxContainer = document.createElement("div");
-            bboxContainer.style = `
+        bboxContainer.style = `
             position: absolute;
             left: ${bbox.x * scaleX}px;
             top: ${bbox.y * scaleY}px;
@@ -356,7 +369,6 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
                     break;
                 }
             }
-            console.log(previousIndex, nextIndex);
 
             if (nextIndex === null || previousIndex === null) {
                 return;
@@ -369,8 +381,8 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
             const currentDistance = Math.abs(currentFrame - previousFrame);
             const time = currentDistance / distance;
 
-            const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
-            const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+            const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
+            const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
 
             const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
             showBoundingBox(bbox, plate.filteredText);
@@ -410,7 +422,6 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
     } else {
         media.addEventListener('load', () => {
             for (let i = 0; i < plates.length; i++) {
-                console.log(plates[i].lpText);
                 const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
                 showBoundingBox(bbox, plates[i].filteredText);
             }
