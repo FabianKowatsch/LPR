@@ -35,5 +35,8 @@ class Upscaler:
         h, w, _ = image.shape
         return cv2.resize(image, (w * self.scale_factor, h * self.scale_factor), interpolation=cv2.INTER_LANCZOS4)
     
+    def get_scale(self):
+        return self.scale_factor
+    
     #def esrgan(self, image):
         #return self.model.predict(image)

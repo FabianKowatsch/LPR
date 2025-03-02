@@ -2,7 +2,6 @@ import torch
 import pytesseract
 import easyocr
 from torchvision import transforms as T
-import matplotlib.pyplot as plt
 import os
 import subprocess
 
@@ -104,8 +103,12 @@ class OCR_Module:
             for i, (char, conf) in enumerate(zip(label[0], confidence[0])):
                 if conf < 0.5:
                     continue
-                if i in [1, 2, 3] and conf < 0.6:
+                if i == (len(confidence[0]) -2) and char == "0" and conf < 0.86:
                     continue
+                # if i in [ 2] and conf < 0.691:
+                #       continue
+                # if i == 0 and conf < 0.79:
+                #     continue
                 filtered_text += char
             print("FILTERED", filtered_text)
             return filtered_text

@@ -1,6 +1,6 @@
 data_path: ./data/test/images
 label_path: ./data/test/labels
-lpd_checkpoint_path: checkpoints/obb/best.pt
+lpd_checkpoint_path: checkpoints/test/LPD_best.pt # checkpoints/obb/best.pt
 verbose: False
 visualize: True
 recognizer: 
@@ -16,8 +16,7 @@ image_processing:
   grayscale: True
   denoising: True
   normalize: True
-  contrast: False
+  color_mask: False
   thresholding: False
   threshold_value: 100
   rotation: True
-  max_rotation_angle: 10

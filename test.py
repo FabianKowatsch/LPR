@@ -10,6 +10,7 @@ from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
 from modules.image_processing import Processing
+from utils import crop_image, normalize_text, calculate_char_confusion_matrix, plot_confusion_matrix
 
 def levenshtein_distance(a, b):
     m, n = len(a), len(b)
@@ -63,58 +64,63 @@ def test(config):
     total_wer = 0
     total_cases = 0
     total_correct = 0
+    total_wrong = 0
+    predictions = []
+    ground_truth = []
 
     for i, image_and_label in enumerate(images):
         image = image_and_label[0]
-        try:
-            boxes = detector(image)
-            if not boxes:  # No license plates detected
-                continue
-        except Exception as e:
+        # try:
+        boxes = detector(image)
+        if not boxes:  # No license plates detected
             continue
+        # except Exception as e:
+        #     continue
         cers = []
         wers = []
         for j, box in enumerate(boxes):
-            try:
-                # Crop the image to simplify ocr
+
+            # Crop the image to simplify ocr
+            try: 
                 lp_image = crop_image(image, box)
-
-                # Save the cropped image
-                cropped_image_path = f'static/uploads/cropped_plate_{i}_{j}.png'
-                cv2.imwrite(cropped_image_path, lp_image)
-
-                # Upscaling
-                lp_image = upscaler(lp_image)
-
-                # Processing
-                lp_image = image_processing(lp_image)
-
-                # Text recognition
-                lp_text = ocr(lp_image)
-
-                lp_text_normalized = normalize_text(lp_text)
-                text_filtered = re.sub(r'[^A-Z0-9]', '', lp_text_normalized)
-                text_filtered = re.sub(r'([A-Z0-9])\1{4}', lambda m: m.group(1) * 4, text_filtered)
-
-                gt_normalized = normalize_text(image_and_label[1])
-                gt = re.sub(r'[^A-Z0-9]', '', gt_normalized)
-           
-                print("Predicted: ", text_filtered)
-                print("GT: ", gt)
-                print("Correct: ", gt == text_filtered)
-
-                cer = character_error_rate(gt, text_filtered)
-                cers.append(cer)
-                wer = word_error_rate(gt, text_filtered)
-                wers.append(wer)
-            
             except Exception as e:
-                print(e)
                 continue
+
+            # Upscaling
+            lp_image = upscaler(lp_image)
+
+            # Processing
+            lp_image = image_processing(lp_image, box, upscaler.get_scale())
+
+            # Text recognition
+            lp_text = ocr(lp_image)
+
+            lp_text_normalized = normalize_text(lp_text)
+            text_filtered = re.sub(r'[^A-Z0-9]', '', lp_text_normalized)
+            text_filtered = re.sub(r'([A-Z0-9])\1{4}', lambda m: m.group(1) * 4, text_filtered)
+
+            gt_normalized = normalize_text(image_and_label[1])
+            gt = re.sub(r'[^A-Z0-9]', '', gt_normalized)
+        
+            print("Predicted: ", text_filtered)
+            print("GT: ", gt)
+            print("Correct: ", gt == text_filtered)
+
+            cer = character_error_rate(gt, text_filtered)
+            cers.append(cer)
+            wer = word_error_rate(gt, text_filtered)
+            predictions.append(text_filtered)
+            ground_truth.append(gt)
+            wers.append(wer)
+            if cer == 1:
+                total_wrong+=1      
         
 
-        cer = min(cers)
-        wer = min(wers)
+        cer = min(cers) if cers else 1.0
+
+
+        wer = min(wers) if wers else 1.0
+
         print("CER: ", cer)
         print("WER: ", wer)
         print("")
@@ -130,54 +136,20 @@ def test(config):
     if total_cases > 0:
         avg_cer = total_cer / total_cases
         avg_wer = total_wer / total_cases
-        overall_accuracy = total_correct / total_cases
+        overall_word_accuracy = total_correct / total_cases
+        overall_character_accuracy = 1- avg_cer
         print("=== Overall Performance Metrics ===")
         print("Average CER: ", avg_cer)
         print("Average WER: ", avg_wer)
-        print("Overall Accuracy: ", overall_accuracy)
+        print("Overall Word Accuracy: ", overall_word_accuracy)
+        print("Overall Character Accuracy: ", overall_character_accuracy)
+        print("Total Wrong:", total_wrong)
+        # Calculate the confusion matrix
+        matrix, all_chars = calculate_char_confusion_matrix(ground_truth, predictions)
+        plot_confusion_matrix(matrix, all_chars)
+
     else:
         print("No detections were processed.")
-
-def crop_image(image, box, offset_left=13, offset_right=30):
-    #offset_left=13, offset_right=30
-    x1, y1, x2, y2 = map(int, box.xyxy[0])
-    # Entferne einen kleinen Rand am linken Rand (offset)
-    return image[y1:y2, (x1 + ((x2-x1)//offset_left)) : (x2 - ((x2-x1)//offset_right)), :].copy()
-
-def show_image(img: np.ndarray, plate_image:np.ndarray, text: str, box, ax):
-
-    # draw red outlines
-    x1, y1, x2, y2 = map(int, box.xyxy[0])
-    image = img.copy()
-    image[y1, x1:x2-1, 0] = 255
-    image[y2-1, x1:x2-1, 0] = 255
-    image[y1:y2-1, x1, 0] = 255
-    image[y1:y2-1, x2-1, 0] = 255
-
-    # show image slideshow
-    ax[0].clear()
-    ax[0].imshow(image)
-    ax[0].set_title(f"License plate at: {[x1,x2], [y1,y2]}")
-    ax[0].axis('off')
-
-    ax[1].clear() 
-    ax[1].imshow(plate_image)
-    ax[1].set_title(text)
-    ax[1].axis('off')
-
-    plt.draw()
-    plt.show()
-    #plt.pause(1.0)
-
-def normalize_text(text):
-    replacements = {
-        'Ä': 'A', 'Ö': 'O', 'Ü': 'U',
-        'ä': 'A', 'ö': 'O', 'ü': 'U',
-        'ß': 'SS'
-    }
-    for umlaut, replacement in replacements.items():
-        text = text.replace(umlaut, replacement)
-    return text
 
 
 
