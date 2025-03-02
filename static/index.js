@@ -19,9 +19,13 @@ class LicensePlate {
         this.trackID = trackID;
         this.lpText = "";  // License plate text
         this.filteredText = "";
+        this.image = null;
         this.maxConfidence = 0;
 
+        this.lpTexts = [];
+        this.filteredTexts = [];
         this.images = [];
+        this.confidences = [];
 
         this.boundingBoxes = [];
         this.frames = [];      // Array to store frames where the license plate is detected
@@ -29,16 +33,48 @@ class LicensePlate {
 
     // Add a frame and corresponding bounding box
     addDetection(lpText, filteredText, confidence, image, box, frame) {
+        this.lpTexts.push(lpText);
+        this.filteredTexts.push(filteredText);
+        this.confidences.push(confidence);
         this.images.push(image);
+
         this.boundingBoxes.push(box);
         this.frames.push(frame);
+    }
 
-        if (confidence > this.maxConfidence) {
-            this.maxConfidence = confidence;
-            this.lpText = lpText;
-            this.filteredText = filteredText;
+    joinLicensePlate(licensePlate) {
+        if (this.maxConfidence < licensePlate.maxConfidence) {
+            this.lpText = licensePlate.lpText;
+            this.filteredText = licensePlate.filteredText;
+            this.image = licensePlate.image;
+            this.maxConfidence = licensePlate.maxConfidence;
         }
 
+        this.boundingBoxes = this.boundingBoxes.concat(licensePlate.boundingBoxes);
+        this.frames = this.frames.concat(licensePlate.frames);
+    }
+
+    findHigestConfidenceText() {
+        let highestConfidence = 0;
+        let highestConfidenceIndex = 0;
+
+        // get the median length of the license plate texts strings
+        const medianLength = this.lpTexts.reduce((a, b) => a + b.length, 0) / this.lpTexts.length;
+
+        // search for the highest confidence text, filter out the ones that are significantly shorter
+        for (let i = 0; i < this.confidences.length; i++) {
+            if (this.confidences[i] > highestConfidence && this.lpTexts[i].length > medianLength * 0.75) {
+                highestConfidence = this.confidences[i];
+                highestConfidenceIndex = i;
+            }
+        }
+
+        this.lpText = this.lpTexts[highestConfidenceIndex];
+        this.filteredText = this.filteredTexts[highestConfidenceIndex];
+        this.image = this.images[highestConfidenceIndex];
+        this.maxConfidence = highestConfidence;
+
+        console.log("Highest confidence text:", this.lpText, "Confidence:", this.maxConfidence, "Median length:", medianLength);
     }
 }
 
@@ -46,16 +82,8 @@ class LicensePlate {
 function addLicensePlate(plateItem) {
     let existingLicensePlate = null;
 
-    const threshold = 2; // Allow up to 2 character differences
     // Check if the license plate already exists in the array
     for (let lp of licensePlates) {
-        // // Calculate the Levenshtein distance between the current plate and the existing one
-        // const distance = levenshtein(lp.lpText, plateItem.lp_text);
-        // // If the distance is below the threshold, consider them as the same plate
-        // if (distance <= threshold) {
-        //     existingLicensePlate = lp;
-        //     break;
-        // }
         if (plateItem.track_id === lp.trackID) {
             existingLicensePlate = lp;
             break;
@@ -75,7 +103,7 @@ function addLicensePlate(plateItem) {
     } else {
         // Otherwise, create a new LicensePlate object and add it to the list
         if (!plateItem.error) {
-            const newLicensePlate = new LicensePlate(plateItem.lp_text, plateItem.text_filtered, plateItem.track_id);
+            const newLicensePlate = new LicensePlate(plateItem.track_id);
             newLicensePlate.addDetection(
                 plateItem.lp_text,
                 plateItem.text_filtered,
@@ -86,7 +114,7 @@ function addLicensePlate(plateItem) {
             );
             licensePlates.push(newLicensePlate);
         } else {
-            const newLicensePlate = new LicensePlate(plateItem.error, plateItem.error);
+            const newLicensePlate = new LicensePlate(plateItem.error);
             licensePlates.push(newLicensePlate);
         }
 
@@ -94,6 +122,25 @@ function addLicensePlate(plateItem) {
 
 }
 
+function findHigestConfidenceText() {
+    licensePlates.forEach((plate) => plate.findHigestConfidenceText());
+}
+
+function joinLicensePlates() {
+    // Join license plates that have a close levenshtein distance
+    const threshold = 2; // Allow up to 1 character differences
+
+    for (let i = 0; i < licensePlates.length; i++) {
+        for (let j = i + 1; j < licensePlates.length; j++) {
+            const distance = levenshtein(licensePlates[i].lpText, licensePlates[j].lpText);
+            if (distance <= threshold) {
+                licensePlates[i].joinLicensePlate(licensePlates[j]);
+                licensePlates.splice(j, 1);
+                j--; // Decrement j to account for the removed element
+            }
+        }
+    }
+}
 
 function runInference() {
     const fileInput = document.getElementById("fileInput");
@@ -241,18 +288,21 @@ function processResults(results) {
     results.results.forEach((item) => {
         addLicensePlate(item);
     })
+    findHigestConfidenceText();
+    joinLicensePlates();
+
 
     const frameRate = results.results[0]?.fps || 30;
     // Loop through inference results and create result items
     licensePlates.forEach((plate) => {
-        console.log(`Track ID: ${plate.trackID}, Number of images: ${plate.images.length}`);
+        console.log(`Track ID: ${plate.trackID}, Number of boxes: ${plate.boundingBoxes.length}`);
 
         const resultItem = document.createElement("div");
         resultItem.classList.add("result-item");
 
         // Create an image element for the cropped license plate
         const croppedImg = document.createElement("img");
-        croppedImg.src = plate.images[0];
+        croppedImg.src = plate.image;
         croppedImg.alt = plate.lp_text;
         croppedImg.style = `
             max-width: 100%; 

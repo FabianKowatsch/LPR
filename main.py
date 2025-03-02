@@ -202,9 +202,6 @@ def predict_from_video(config):
     image_processing = Processing(config["image_processing"])
     frame_interval = config["frame_interval"]
 
-    frame_count = 0
-    results = []
-
     # Create output folder if it doesn't exist
     cropped_dir = "static/uploads/"
     os.makedirs(cropped_dir, exist_ok=True)
@@ -214,10 +211,21 @@ def predict_from_video(config):
     # Initialize DeepSORT tracker
     tracker = DeepSort(max_age=20)  # Adjust tracking parameters as needed
 
+    frame_count = 0
+    results = []
     while cap.isOpened():
+        print(f"___Frame {frame_count}___")
         ret, frame = cap.read()
         if not ret:
             break  # Stop when the video ends
+
+        # Calculate timestamp (HH:MM:SS)
+        seconds = frame_count / fps
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds = int(seconds % 60)
+        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        print(f"Time: {time_str}")
 
         if frame_count % frame_interval == 0:
             boxes = detector(frame)
@@ -228,7 +236,6 @@ def predict_from_video(config):
             for j, box in enumerate(boxes):
                 try:
                     x1, y1, x2, y2 = box.xyxy.cpu().numpy().tolist()[0]
-                    print(f"__Bounding Box1: {x1}, {y1}, {x2}, {y2}")
                     w = x2 - x1
                     h = y2 - y1
                     cx = (x1 + x2) / 2
@@ -241,11 +248,9 @@ def predict_from_video(config):
                 except Exception as e:
                     print(f"Error processing plate in frame {frame_count}: {e}")
                     continue
-            print(f"__Center Boxes: {len(center_boxes)}")
             # Update tracker with center_boxes
             tracked_objects = tracker.update_tracks(center_boxes, frame=frame)
 
-            print(f"__Tracked Objects: {len(tracked_objects)}")
             for track in tracked_objects:
                 if not track.is_confirmed():
                     print("Not confirmed")
@@ -254,9 +259,9 @@ def predict_from_video(config):
                 track_id = track.track_id  # Unique object ID from DeepSORT
                 tracker_box = track.to_tlbr()
 
+                # Check if the tracker box overlaps with any of the bounding boxes
                 detector_box = None
                 iou_max = 0
-                # Check if the tracker box overlaps with any of the bounding boxes
                 for box in bounding_boxes:
                     iou = calculate_iou(box, tracker_box)
                     if iou > iou_max:
@@ -268,7 +273,6 @@ def predict_from_video(config):
                                     
                 # Use YOLO bounding box (not DeepSORT's predicted one)
                 x1, y1, x2, y2 = list(map(int, detector_box))
-                print(f"__Tracking ID: {track_id} | YOLO Bounding detector_box: {x1}, {y1}, {x2}, {y2}")
                 try:
                     # Crop and process image
                     lp_image = crop_image(frame, list(map(int, detector_box)))
@@ -288,12 +292,6 @@ def predict_from_video(config):
                     if "OCR failed" in lp_text:
                         continue
 
-                    # Calculate timestamp (HH:MM:SS)
-                    seconds = frame_count / fps
-                    hours = int(seconds // 3600)
-                    minutes = int((seconds % 3600) // 60)
-                    seconds = int(seconds % 60)
-                    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
                     # Append results with tracking ID
                     results.append({
@@ -314,8 +312,10 @@ def predict_from_video(config):
         frame_count += 1
 
     cap.release()
-    print(f"First Tracked Box: {results[0]['box']} with ID {results[0]['track_id']}")
-    return results
+    if (len(results) == 0):
+        print("No license plates detected in the video.")
+    else:
+        return results
 
 
 # UTILS _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _

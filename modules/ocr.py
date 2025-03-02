@@ -100,10 +100,11 @@ class OCR_Module:
             logits = self.model(img)
             pred = logits.softmax(-1)
             label, confidence = self.model.tokenizer.decode(pred)
+            confidence_mean = confidence[0].mean().item()
 
             if not label or len(label[0].strip()) == 0:  # Kein Text erkannt
                 raise ValueError("No text detected.")
-            return label[0], confidence
+            return label[0], confidence_mean
         except Exception as e:
             print(f"Parseq OCR failed: {e}")  # Debugging-Ausgabe
             return "OCR failed: No text detected or invalid input."
