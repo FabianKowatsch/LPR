@@ -215,7 +215,11 @@ def predict_from_video(config, progress_callback=None):
     fps = cap.get(cv2.CAP_PROP_FPS)  # Get video FPS
 
     # Initialize DeepSORT tracker
-    tracker = DeepSort(max_age=20)  # Adjust tracking parameters as needed
+    tracker = DeepSort(
+        max_age=20,           # How long an object is tracked without detections
+        # n_init=2,           # Minimum number of confirmed detections before being tracked
+        # max_cosine_distance=0.3,  # Cosine distance threshold for feature matching
+    )
 
     frame_count = 0
     results = []
@@ -246,6 +250,14 @@ def predict_from_video(config, progress_callback=None):
             for j, box in enumerate(boxes):
                 try:
                     x1, y1, x2, y2 = box.xyxy.cpu().numpy().tolist()[0]
+
+                    # For Debugging
+                    results.append({
+                        "frame": frame_count,
+                        "fps": fps,
+                        "box_raw": [x1, y1, x2, y2]
+                    })
+
                     w = x2 - x1
                     h = y2 - y1
                     cx = (x1 + x2) / 2

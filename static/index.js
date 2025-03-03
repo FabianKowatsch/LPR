@@ -1,255 +1,99 @@
-// Function to select an example image
-function selectExample(element) {
-
-  const fileInput = document.getElementById("fileInput");
-  // Falls bereits eine Datei hochgeladen wurde, frage den Nutzer
-  if (fileInput.files.length > 0) {
-    const useExample = confirm(
-      "A file has already been uploaded. Do you want to remove the file and select the example instead?"
-    );
-    if (!useExample) {
-      return; // Wenn der Nutzer ablehnt, nichts ändern
-    }
-    // Datei entfernen
-    fileInput.value = "";
-  }
-
-  const exampleSelect = document.getElementById("exampleSelect");
-  const exampleImages = document.querySelectorAll(".example-img");
-
-  // Set the hidden input value to the selected example's filename
-  exampleSelect.value = element.getAttribute("data-filename");
-
-  // Highlight the selected image
-  exampleImages.forEach((img) => img.classList.remove("selected"));
-  element.classList.add("selected");
-}
-
-
-let licensePlates = [];
-class LicensePlate {
-  constructor(trackID) {
-    this.trackID = trackID;
-    this.lpText = "";  // License plate text
-    this.filteredText = "";
-    this.image = null;
-    this.maxConfidence = 0;
-
-    this.lpTexts = [];
-    this.filteredTexts = [];
-    this.images = [];
-    this.confidences = [];
-
-    this.boundingBoxes = [];
-    this.frames = [];      // Array to store frames where the license plate is detected
-  }
-
-  // Add a frame and corresponding bounding box
-  addDetection(lpText, filteredText, confidence, image, box, frame) {
-    this.lpTexts.push(lpText);
-    this.filteredTexts.push(filteredText);
-    this.confidences.push(confidence);
-    this.images.push(image);
-
-    this.boundingBoxes.push(box);
-    this.frames.push(frame);
-  }
-
-  joinLicensePlate(licensePlate) {
-    if (this.maxConfidence < licensePlate.maxConfidence) {
-      this.lpText = licensePlate.lpText;
-      this.filteredText = licensePlate.filteredText;
-      this.image = licensePlate.image;
-      this.maxConfidence = licensePlate.maxConfidence;
-    }
-
-    this.boundingBoxes = this.boundingBoxes.concat(licensePlate.boundingBoxes);
-    this.frames = this.frames.concat(licensePlate.frames);
-  }
-
-  findHigestConfidenceText() {
-    let highestConfidence = 0;
-    let highestConfidenceIndex = 0;
-
-    // get the median length of the license plate texts strings
-    const medianLength = this.lpTexts.reduce((a, b) => a + b.length, 0) / this.lpTexts.length;
-
-    // search for the highest confidence text, filter out the ones that are significantly shorter
-    for (let i = 0; i < this.confidences.length; i++) {
-      if (this.confidences[i] > highestConfidence && this.lpTexts[i].length > medianLength * 0.75) {
-        highestConfidence = this.confidences[i];
-        highestConfidenceIndex = i;
-      }
-    }
-
-    this.lpText = this.lpTexts[highestConfidenceIndex];
-    this.filteredText = this.filteredTexts[highestConfidenceIndex];
-    this.image = this.images[highestConfidenceIndex];
-    this.maxConfidence = highestConfidence;
-
-    console.log("Highest confidence text:", this.lpText, "Confidence:", this.maxConfidence, "Median length:", medianLength);
-  }
-}
-
-// Function to add a license plate to the list, if it already exists add the frame and bbox
-function addLicensePlate(plateItem) {
-  let existingLicensePlate = null;
-
-  // Check if the license plate already exists in the array
-  for (let lp of licensePlates) {
-    if (plateItem.track_id === lp.trackID) {
-      existingLicensePlate = lp;
-      break;
-    }
-  }
-
-  // If license plate exists, add the frame and bbox
-  if (existingLicensePlate) {
-    existingLicensePlate.addDetection(
-      plateItem.lp_text,
-      plateItem.text_filtered,
-      plateItem.confidence,
-      plateItem.image,
-      plateItem.box,
-      plateItem.frame || 0
-    );
-  } else {
-    // Otherwise, create a new LicensePlate object and add it to the list
-    if (!plateItem.error) {
-      const newLicensePlate = new LicensePlate(plateItem.track_id);
-      newLicensePlate.addDetection(
-        plateItem.lp_text,
-        plateItem.text_filtered,
-        plateItem.confidence,
-        plateItem.image,
-        plateItem.box,
-        plateItem.frame || 0
-      );
-      licensePlates.push(newLicensePlate);
-    } else {
-      const newLicensePlate = new LicensePlate(plateItem.error);
-      licensePlates.push(newLicensePlate);
-    }
-
-  }
-
-}
-
-function findHigestConfidenceText() {
-  licensePlates.forEach((plate) => plate.findHigestConfidenceText());
-}
-
-function joinLicensePlates() {
-  // Join license plates that have a close levenshtein distance
-  const threshold = 2; // Allow up to 1 character differences
-
-  for (let i = 0; i < licensePlates.length; i++) {
-    for (let j = i + 1; j < licensePlates.length; j++) {
-      const distance = levenshtein(licensePlates[i].lpText, licensePlates[j].lpText);
-      if (distance <= threshold) {
-        licensePlates[i].joinLicensePlate(licensePlates[j]);
-        licensePlates.splice(j, 1);
-        j--; // Decrement j to account for the removed element
-      }
-    }
-  }
-}
+let frameRate = 30;
 
 function runInference() {
-  const fileInput = document.getElementById("fileInput");
-  const exampleSelect = document.getElementById("exampleSelect");
-  const recognizerSelect = document.getElementById("recognizerSelect");
-  const frameInterval = document.getElementById("frameInterval");
-  const errorMessage = document.getElementById("errorMessage");
+    const fileInput = document.getElementById("fileInput");
+    const exampleSelect = document.getElementById("exampleSelect");
+    const recognizerSelect = document.getElementById("recognizerSelect");
+    const frameInterval = document.getElementById("frameInterval");
+    const errorMessage = document.getElementById("errorMessage");
 
-  if (
-    (!fileInput.files.length && !exampleSelect.value) ||
-    !recognizerSelect.value
-  ) {
-    errorMessage.classList.remove("d-none");
-    return;
-  } else {
-    errorMessage.classList.add("d-none");
-  }
-
-  const file = fileInput.files[0];
-  const examplePath = exampleSelect.value || null;
-  const recognizer = recognizerSelect.value;
-  const frameIntervalValue = frameInterval.value || 1;
-
-  let localImageUrl = null;
-  if (file) localImageUrl = file ? URL.createObjectURL(file) : null;
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("example", examplePath);
-  formData.append("recognizer", recognizer);
-  formData.append("frameInterval", frameIntervalValue);
-
-  // Progress nur bei Video anzeigen
-  if (file && file.type.startsWith("video/")) {
-    document.getElementById("progressContainer").style.display = "block";
-  } else {
-    document.getElementById("progressContainer").style.display = "none";
-  }
-
-  // Send POST request to /upload endpoint
-  fetch("/upload", {
-    method: "POST",
-    body: formData,
-  })
-    .then((response) => response.json())
-    .then((data) => {
-      // check if the response contains an error message
-      if (data.error) {
-        alert(data.error);
+    if (
+        (!fileInput.files.length && !exampleSelect.value) ||
+        !recognizerSelect.value
+    ) {
+        errorMessage.classList.remove("d-none");
         return;
-      }
-      console.log("Upload success:", data);
-      processResults({
-        file_url: localImageUrl || data.file_url,
-        filename: data.filename,
-        results: data.results,
-      });
+    } else {
+        errorMessage.classList.add("d-none");
+    }
+
+    const file = fileInput.files[0];
+    const examplePath = exampleSelect.value || null;
+    const recognizer = recognizerSelect.value;
+    const frameIntervalValue = frameInterval.value || 1;
+
+    let localImageUrl = null;
+    if (file) localImageUrl = file ? URL.createObjectURL(file) : null;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("example", examplePath);
+    formData.append("recognizer", recognizer);
+    formData.append("frameInterval", frameIntervalValue);
+
+    // Progress nur bei Video anzeigen
+    if (file && file.type.startsWith("video/")) {
+        document.getElementById("progressContainer").style.display = "block";
+    } else {
+        document.getElementById("progressContainer").style.display = "none";
+    }
+
+    // Send POST request to /upload endpoint
+    fetch("/upload", {
+        method: "POST",
+        body: formData,
     })
-    .catch((error) => {
-      console.error("Upload error:", error);
-    });
+        .then((response) => response.json())
+        .then((data) => {
+            // check if the response contains an error message
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            console.log("Upload success:", data);
+            processResults({
+                file_url: localImageUrl || data.file_url,
+                filename: data.filename,
+                results: data.results,
+            });
+        })
+        .catch((error) => {
+            console.error("Upload error:", error);
+        });
 
 }
 
-
-
 function processResults(results) {
-  document.getElementById("progressContainer").style.display = "none";
-  const uploadContainer = document.getElementById("uploadContainer");
-  const resultContainer = document.getElementById("resultContainer");
-  const imageContainer = document.getElementById("imageContainer");
-  const resultsList = document.getElementById("resultsList");
+    document.getElementById("progressContainer").style.display = "none";
+    const uploadContainer = document.getElementById("uploadContainer");
+    const resultContainer = document.getElementById("resultContainer");
+    const imageContainer = document.getElementById("imageContainer");
+    const resultsList = document.getElementById("resultsList");
 
-  // Hide the upload container and show the result container
-  uploadContainer.style.display = "none";
-  resultContainer.style.display = "flex";
+    // Hide the upload container and show the result container
+    uploadContainer.style.display = "none";
+    resultContainer.style.display = "flex";
 
-  // Clear previous content
-  imageContainer.innerHTML = "";
-  resultsList.innerHTML = "";
+    // Clear previous content
+    imageContainer.innerHTML = "";
+    resultsList.innerHTML = "";
 
-  // Determine if the uploaded file is a video
-  const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
-  const fileExtension = results.filename.split(".").pop().toLowerCase();
-  const isVideo = videoExtensions.includes(`.${fileExtension}`);
+    // Determine if the uploaded file is a video
+    const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
+    const fileExtension = results.filename.split(".").pop().toLowerCase();
+    const isVideo = videoExtensions.includes(`.${fileExtension}`);
 
-  let mediaElement = null;
-  let bboxOverlay = null;
+    let mediaElement = null;
+    let bboxOverlay = null;
 
-  if (isVideo) {
-    // Create a <video> element
-    mediaElement = document.createElement("video");
-    mediaElement.src = results.file_url;
-    mediaElement.controls = true;
-    mediaElement.autoplay = false;
-    mediaElement.style = `
+    if (isVideo) {
+        // Create a <video> element
+        mediaElement = document.createElement("video");
+        mediaElement.id = "videoElement";
+        mediaElement.src = results.file_url;
+        mediaElement.controls = true;
+        mediaElement.autoplay = false;
+        mediaElement.style = `
             max-width: 100%; 
             height: auto; 
             max-height: 100%; 
@@ -257,9 +101,9 @@ function processResults(results) {
             margin: auto;
         `;
 
-    // Create bounding box overlay for video
-    bboxOverlay = document.createElement("div");
-    bboxOverlay.style = `
+        // Create bounding box overlay for video
+        bboxOverlay = document.createElement("div");
+        bboxOverlay.style = `
             position: absolute;
             top: 0;
             left: 0;
@@ -268,38 +112,38 @@ function processResults(results) {
             pointer-events: none;
         `;
 
-    // Wrap video and overlay
-    const mediaWrapper = document.createElement("div");
-    mediaWrapper.style = `
+        // Wrap video and overlay
+        const mediaWrapper = document.createElement("div");
+        mediaWrapper.style = `
             position: relative; 
             display: inline-block;
         `;
-    mediaWrapper.appendChild(mediaElement);
-    mediaWrapper.appendChild(bboxOverlay);
+        mediaWrapper.appendChild(mediaElement);
+        mediaWrapper.appendChild(bboxOverlay);
 
-    imageContainer.appendChild(mediaWrapper);
-  } else {
-    // Create a container for image and bounding boxes
-    const mediaWrapper = document.createElement("div");
-    mediaWrapper.style = `
+        imageContainer.appendChild(mediaWrapper);
+    } else {
+        // Create a container for image and bounding boxes
+        const mediaWrapper = document.createElement("div");
+        mediaWrapper.style = `
             position: relative; 
             display: inline-block;
         `;
 
-    // Create the original image
-    mediaElement = document.createElement("img");
-    mediaElement.src = results.file_url;
-    mediaElement.alt = results.filename;
-    mediaElement.style = `
+        // Create the original image
+        mediaElement = document.createElement("img");
+        mediaElement.src = results.file_url;
+        mediaElement.alt = results.filename;
+        mediaElement.style = `
             max-width: 100%; 
             height: auto; 
             max-height: 100%;
         `;
-    mediaWrapper.appendChild(mediaElement);
+        mediaWrapper.appendChild(mediaElement);
 
-    // Create bounding box overlay
-    bboxOverlay = document.createElement("div");
-    bboxOverlay.style = `
+        // Create bounding box overlay
+        bboxOverlay = document.createElement("div");
+        bboxOverlay.style = `
             position: absolute; 
             top: 0; 
             left: 0; 
@@ -307,134 +151,112 @@ function processResults(results) {
             height: 100%; 
             pointer-events: none;
         `;
-    mediaWrapper.appendChild(bboxOverlay);
+        mediaWrapper.appendChild(bboxOverlay);
 
-    imageContainer.appendChild(mediaWrapper);
-  }
+        imageContainer.appendChild(mediaWrapper);
+    }
 
-  // Back to Home Button hinzufügen
-  const backButton = document.createElement("a");
-  backButton.href = "/";
-  backButton.className = "btn btn-primary w-100 mt-4";
-  backButton.textContent = " ← Upload Another File";
-  resultsList.appendChild(backButton);
+    // // Back to Home Button hinzufügen
+    // const backButton = document.createElement("a");
+    // backButton.href = "/";
+    // backButton.className = "btn btn-primary w-100 mt-4";
+    // backButton.textContent = " ← Upload Another File";
+    // resultsList.appendChild(backButton);
 
-  // Mention Filename and Recognizer
-  const recognizerSelect = document.getElementById("recognizerSelect");
-  const recognizer = recognizerSelect.value;
-  const headline = document.createElement("h4");
-  headline.className = "result-headline";
-  headline.innerHTML = `Detection complete: "<span class="filename">${results.filename}</span>" processed by <span class="recognizer">${recognizer}</span>.`;
-  resultsList.appendChild(headline);
+    // Mention Filename and Recognizer
+    const recognizerSelect = document.getElementById("recognizerSelect");
+    const recognizer = recognizerSelect.value;
+    const headline = document.createElement("h4");
+    headline.className = "result-headline";
+    headline.innerHTML = `Detection complete: "<span class="filename">${results.filename}</span>" processed by <span class="recognizer">${recognizer}</span>.`;
+    resultsList.appendChild(headline);
 
-  // Add license plate detection results
-  results.results.forEach((item) => {
-    addLicensePlate(item);
-  });
+    // Add license plate detection results
+    results.results.forEach((item) => {
+        if (item["box_raw"] !== undefined) {
+            rawBoxes.push(item)
+        } else {
+            addLicensePlate(item);
+        }
+    })
+    findHigestConfidenceText();
+    filterLicensePlates();
+    joinLicensePlates();
 
-  if (results.results[0]?.fps) {
-    frameRate = results.results[0]?.fps
-  }
+    if (results.results[0]?.fps) {
+        frameRate = results.results[0]?.fps
+    }
 
-  // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
-  let hasValidPlate = false;
+    // Loop through inference results and create result items
+    showLicensePlateList(licensePlates);
+    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
+}
 
-  // 1. Prüfen, ob plate.filteredText existiert und nicht leer ist
-  if (!plate.filteredText || plate.filteredText.trim() === "") {
-    return; // Überspringen
-  }
+function showLicensePlateList(plates) {
+    const resultsList = document.getElementById("resultsList");
+    resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
+        onchange="searchResults(this)">`;
 
-  // 2. Prüfen, ob das Kennzeichen nur eine Fehlermeldung ist (falls du so etwas abfängst)
-  //    z. B. "OCR processing failed: No valid text detected"
-  //    Wenn deine Fehlertexte immer gleich aufgebaut sind, kannst du z. B. so filtern:
-  if (plate.filteredText.includes("OCR processing failed")) {
-    return; // Überspringen
-  }
+    plates.forEach((plate) => {
+        // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
+        let hasValidPlate = false;
+        // 1. Prüfen, ob plate.filteredText existiert und nicht leer ist
+        if (!plate.filteredText || plate.filteredText.trim() === "") {
+            return; // Überspringen
+        }
+        // 2. Prüfen, ob das Kennzeichen nur eine Fehlermeldung ist (falls du so etwas abfängst)
+        //    z. B. "OCR processing failed: No valid text detected"
+        //    Wenn deine Fehlertexte immer gleich aufgebaut sind, kannst du z. B. so filtern:
+        if (plate.filteredText.includes("OCR processing failed")) {
+            return; // Überspringen
+        }
+        // Wenn wir hier sind, haben wir ein valides Kennzeichen.
+        hasValidPlate = true;
 
-  // Wenn wir hier sind, haben wir ein valides Kennzeichen.
-  hasValidPlate = true;
+        console.log(`Track ID: ${plate.trackID}, Plate text: ${plate.lpText}, Max Confidence: ${plate.maxConfidence}`);
 
-  console.log("Number of images:", plate.images.length);
+        const resultItem = document.createElement("div");
+        resultItem.classList.add("result-item");
 
-  // Add license plate detection results
-  results.results.forEach((item) => {
-    addLicensePlate(item);
-  })
-  findHigestConfidenceText();
-  joinLicensePlates();
-
-
-  const frameRate = results.results[0]?.fps || 30;
-  // Loop through inference results and create result items
-  licensePlates.forEach((plate) => {
-    console.log(`Track ID: ${plate.trackID}, Number of boxes: ${plate.boundingBoxes.length}`);
-
-    const resultItem = document.createElement("div");
-    resultItem.classList.add("result-item");
-
-    // Create an image element for the cropped license plate
-    const croppedImg = document.createElement("img");
-    croppedImg.src = plate.image;
-    croppedImg.alt = plate.lp_text;
-    croppedImg.style = `
+        // Create an image element for the cropped license plate
+        const croppedImg = document.createElement("img");
+        croppedImg.src = plate.image;
+        croppedImg.alt = plate.lp_text;
+        croppedImg.style = `
             max-width: 100%; 
             height: 50px; 
             border-radius: 5px;
         `;
-    resultItem.appendChild(croppedImg);
+        resultItem.appendChild(croppedImg);
 
-    // Create a text element for the detected license plate text
-    const textElement = document.createElement("p");
-    textElement.innerHTML = `<strong>Detected:</strong> ${plate.lpText}`;
-    resultItem.appendChild(textElement);
-    console.log("BoundingBoxes:", plate.boundingBoxes);
+        // Create a text element for the detected license plate text
+        const textElement = document.createElement("p");
+        textElement.innerHTML = `<strong>Detected:</strong> ${plate.lpText}`;
+        resultItem.appendChild(textElement);
 
-    // Create a text element for the filtered license plate text
-    const filteredTextElement = document.createElement("p");
-    filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
-    resultItem.appendChild(filteredTextElement);
+        // Create a text element for the filtered license plate text
+        const filteredTextElement = document.createElement("p");
+        filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
+        resultItem.appendChild(filteredTextElement);
 
-    // // Check if filename display already exists
-    // const existingFilenameDisplay =
-    //   resultContainer.querySelector(".filename-display");
+        // Add event listener for clicking result items
+        resultItem.style.cursor = "pointer";
+        resultItem.addEventListener("click", () => {
+            const videoElement = document.getElementById("videoElement");
+            if (videoElement) {
+                // Calculate the time from the frame number
+                const frameNumber = plate.frames[0]; // Use the first frame
 
-    // // If it doesn't exist, create and add it
-    // if (!existingFilenameDisplay) {
-    //   const filenameDisplay = document.createElement("div");
-    //   filenameDisplay.classList.add("filename-display");
-    //   filenameDisplay.innerHTML = `<strong>File:</strong> ${results.filename}`;
-    //   resultContainer.insertBefore(filenameDisplay, imageContainer);
-    // }
+                // Calculate the exact time in seconds based on the frame and fps
+                const timeInSeconds = frameNumber / frameRate;
 
-    // Falls keine validen Kennzeichen angezeigt wurden, kurze Meldung ausgeben
-    if (!hasValidPlate) {
-      const noPlatesMsg = document.createElement("p");
-      noPlatesMsg.textContent = "No valid license plates recognized.";
-      resultsList.appendChild(noPlatesMsg);
-    }
+                // Set the video to the exact time
+                videoElement.currentTime = timeInSeconds;
+            }
+        });
 
-    // Add event listener for clicking result items
-    resultItem.style.cursor = "pointer";
-    resultItem.addEventListener("click", () => {
-      if (isVideo && mediaElement) {
-        // Calculate the time from the frame number
-        const frameNumber = plate.frames[0]; // The frame number you want to seek to
-
-        // Calculate the exact time in seconds based on the frame and fps
-        const timeInSeconds = frameNumber / frameRate;
-
-        // Set the video to the exact time
-        mediaElement.currentTime = timeInSeconds;
-      }
+        resultsList.appendChild(resultItem);
     });
-
-
-
-    resultsList.appendChild(resultItem);
-  });
-
-
-  highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
 }
 
 /**
@@ -444,188 +266,169 @@ function processResults(results) {
  * @param {HTMLMediaElement} media - The media element (image or video).
  */
 function highlightBoundingBoxes(plates, overlay, media, framerate) {
-  function showBoundingBox(bbox, plateID) {
-    // Get media dimensions
-    const mediaRect = media.getBoundingClientRect();
-    const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
-    const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
+    const toggleBoxes = document.getElementById("toggleBoxes");
 
-    // Create bounding box container
-    const bboxContainer = document.createElement("div");
-    bboxContainer.style = `
+    function showBoundingBox(bbox, plateID, boxColor) {
+        // Get media dimensions
+        const mediaRect = media.getBoundingClientRect();
+        const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
+        const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
+
+        // Create bounding box container
+        const bboxContainer = document.createElement("div");
+        bboxContainer.style = `
             position: absolute;
             left: ${bbox.x * scaleX}px;
             top: ${bbox.y * scaleY}px;
             width: ${bbox.width * scaleX}px;
             height: ${bbox.height * scaleY}px;
-            outline: 3px solid rgb(191, 10, 70); 
+            outline: 2px solid ${boxColor}; 
             background: rgba(191, 10, 70, 0.1);
             pointer-events: none;
         `;
 
-    // Create label
-    const label = document.createElement("div");
-    label.innerText = plateID;
-    label.style = `
+        // Create label
+        const label = document.createElement("div");
+        label.innerText = plateID;
+        label.style = `
             position: absolute;
-            left: -3px; /* Align with outline */
+            left: -1.5px; /* Align with outline */
             top: -28px; /* Adjust based on outline */
-            width: calc(100% + 6px);
-            padding: 4px;
-            background: rgb(191, 10, 70);
+            width: fit-content;
+            padding: 2px;
+            background: ${boxColor};
             color: white;
             font-weight: bold;
-            font-size: 14px;
+            text-align: center;
+            white-space: nowrap; /* Prevent text wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis;
             text-align: center;
         `;
 
-    // Append label to bounding box
-    bboxContainer.appendChild(label);
-    overlay.appendChild(bboxContainer);
-  }
+        // Append label to bounding box
+        bboxContainer.appendChild(label);
+        overlay.appendChild(bboxContainer);
+    }
 
-
-  function showCurrentBoundingBoxes() {
-    overlay.innerHTML = ""; // Clear previous bounding boxes
-    const currentFrame = Math.ceil(media.currentTime * framerate);
-
-    plates.forEach((plate, index) => {
-      // Bounding Box nur anzeigen, wenn filteredText nicht leer ist
-      if (!plate.filteredText || plate.filteredText.trim() === "") {
-        return; // diesen Plate überspringen
-      }
-
-      if (
-        currentFrame < plate.frames[0] ||
-        currentFrame > plate.frames[plate.frames.length - 1]
-      ) {
-        return;
-      }
-
-      // Find the closest bounding boxes for interpolation
-      let previousIndex = null;
-      let nextIndex = null;
-
-      for (let i = 0; i < plate.frames.length - 1; i++) {
-        if (
-          plate.frames[i] <= currentFrame &&
-          plate.frames[i + 1] >= currentFrame
-        ) {
-          previousIndex = i;
-          nextIndex = i + 1;
-          break;
+    function showFirstBoundingBoxes() {
+        for (let i = 0; i < plates.length; i++) {
+            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+            showBoundingBox(bbox, plates[i].filteredText, "rgb(191, 10, 70)");
         }
-      }
-      console.log(previousIndex, nextIndex);
+    }
 
-      if (nextIndex === null || previousIndex === null) {
-        return;
-      }
+    function showCurrentBoundingBoxes() {
+        overlay.innerHTML = ""; // Clear previous bounding boxes
+        const currentFrame = Math.floor(media.currentTime * framerate);
 
-      const previousFrame = plate.frames[previousIndex];
-      const nextFrame = plate.frames[nextIndex];
+        if (toggleBoxes.checked) {
+            plates.forEach((plate, index) => {
+                if (currentFrame < plate.frames[0]
+                    || currentFrame > plate.frames[plate.frames.length - 1]
+                ) {
+                    return;
+                }
 
-      const distance = Math.abs(nextFrame - previousFrame);
-      const currentDistance = Math.abs(currentFrame - previousFrame);
-      const time = currentDistance / distance;
+                // Find the closest bounding boxes for interpolation
+                let previousIndex = null;
+                let nextIndex = null;
 
-      const previousBbox = parseBbox(plate.boundingBoxes[previousIndex][0]);
-      const nextBbox = parseBbox(plate.boundingBoxes[nextIndex][0]);
+                for (let i = 0; i < plate.frames.length - 1; i++) {
+                    if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
+                        previousIndex = i;
+                        nextIndex = i + 1;
+                        break;
+                    }
+                }
 
-      const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
-      showBoundingBox(bbox, plate.filteredText);
-    });
+                if (nextIndex === null || previousIndex === null) {
+                    return;
+                }
 
-  }
+                const previousFrame = plate.frames[previousIndex];
+                const nextFrame = plate.frames[nextIndex];
 
-  let animationFrameId = null;
+                const distance = Math.abs(nextFrame - previousFrame);
+                const currentDistance = Math.abs(currentFrame - previousFrame);
+                const time = currentDistance / distance;
 
-  function updateBoundingBoxes() {
-    showCurrentBoundingBoxes();
-    animationFrameId = requestAnimationFrame(updateBoundingBoxes);
-  }
+                const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
+                const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
 
-  if (media instanceof HTMLVideoElement) {
-    media.addEventListener('play', () => {
-      updateBoundingBoxes();
-    });
+                const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+                showBoundingBox(bbox, plate.filteredText, "rgb(191, 10, 70)");
+            });
+        } else {
+            rawBoxes.forEach((rawBox, index) => {
+                const frame = Math.floor(rawBox["frame"]);
+                if (frame == currentFrame) {
+                    const bbox = parseBbox(rawBox["box_raw"]);
+                    showBoundingBox(bbox, index, "green");
+                }
+            });
+        }
+    }
 
-    media.addEventListener('pause', () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-    });
+    let animationFrameId = null;
+    function updateBoundingBoxes() {
+        showCurrentBoundingBoxes();
+        animationFrameId = requestAnimationFrame(updateBoundingBoxes);
+    }
 
-    media.addEventListener('seeked', () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-      showCurrentBoundingBoxes();
-    });
+    if (media instanceof HTMLVideoElement) {
+        media.addEventListener('play', () => {
+            updateBoundingBoxes();
+        });
 
-    media.addEventListener('timeupdate', () => {
-      showCurrentBoundingBoxes();
-    });
+        media.addEventListener('pause', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        });
 
-  } else {
+        media.addEventListener('seeked', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            showCurrentBoundingBoxes();
+        });
+
+        media.addEventListener('timeupdate', () => {
+            showCurrentBoundingBoxes();
+        });
+
+        toggleBoxes.addEventListener("change", () => {
+            overlay.innerHTML = "";
+            showCurrentBoundingBoxes();
+        });
+        
+    } else {
         media.addEventListener('load', () => {
+            showFirstBoundingBoxes();
+        })
+
+        // Turn off the toggle container if media is image
+        const toggleContainer = document.getElementById("toggleContainer");
+        toggleContainer.style.display = "none";
+    }
+
+    window.addEventListener('resize', () => {
+        if (media instanceof HTMLVideoElement) {
+            showCurrentBoundingBoxes();
+        } else {
+            overlay.innerHTML = ""; // Clear previous bounding boxes
             for (let i = 0; i < plates.length; i++) {
                 const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
                 showBoundingBox(bbox, plates[i].filteredText);
             }
-        })
-  }
-
-  window.addEventListener('resize', () => {
-    if (media instanceof HTMLVideoElement) {
-      showCurrentBoundingBoxes();
-    } else {
-      overlay.innerHTML = ""; // Clear previous bounding boxes
-      for (let i = 0; i < plates.length; i++) {
-        const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-        showBoundingBox(bbox, plates[i].filteredText);
-      }
-    }
-  });
+        }
+    });
 }
 
-
-// UTILS_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-// Function to calculate Levenshtein distance
-function levenshtein(a, b) {
-  const tmp = [];
-  for (let i = 0; i <= b.length; i++) tmp[i] = [i];
-  for (let j = 0; j <= a.length; j++) tmp[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      tmp[i][j] = Math.min(
-        tmp[i - 1][j] + 1,        // Deletion
-        tmp[i][j - 1] + 1,        // Insertion
-        tmp[i - 1][j - 1] + (a[j - 1] === b[i - 1] ? 0 : 1)  // Substitution
-      );
-    }
-  }
-
-  return tmp[b.length][a.length];
-}
-
-function parseBbox(box) {
-  return {
-    x: box[0],
-    y: box[1],
-    width: box[2] - box[0],
-    height: box[3] - box[1]
-  };
-}
-
-function interpolateBoundingBoxes(bbox1, bbox2, t) {
-  return {
-    x: bbox1.x + (bbox2.x - bbox1.x) * t,
-    y: bbox1.y + (bbox2.y - bbox1.y) * t,
-    width: bbox1.width + (bbox2.width - bbox1.width) * t,
-    height: bbox1.height + (bbox2.height - bbox1.height) * t
-  };
+function searchResults(searchBar) {
+    const plates = searchLicensePlates(searchBar.value)
+    showLicensePlateList(plates);
 }

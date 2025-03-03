@@ -6,9 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>License Plate Recognition</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.8.1/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.8.1/font/bootstrap-icons.min.css"
+    rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 
+  <script src="{{ url_for('static', filename='utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='LicensePlate.js') }}"></script>
   <script src="{{ url_for('static', filename='index.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
@@ -24,97 +27,121 @@
       <!-- File Input -->
       <div class="mb-3">
         <label for="fileInput" class="form-label"><strong>Step 1:</strong> Upload image or video file</label>
-        <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right" title="Supported formats: images (png, jpg, jpeg) and videos (mp4, avi, mkv). Max file size: 10 MB.">
-        <i class="bi bi-info-circle" style="color: white;"></i>
+        <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right"
+          title="Supported formats: images (png, jpg, jpeg) and videos (mp4, avi, mkv). Max file size: 10 MB.">
+          <i class="bi bi-info-circle" style="color: white;"></i>
         </span>
         <input type="file" class="form-control" id="fileInput" name="file" accept="image/*,video/*" />
       </div>
       <label for="fileInput" class="form-label">Or select an example:</label>
 
-        <!-- Example Image Previews -->
-        <div class="example-preview">
-          <img src="{{ url_for('static', filename='examples/example1.png') }}" class="example-img"
-            data-filename="example1.png" onclick="selectExample(this)" alt="Example 1" />
-          <img src="{{ url_for('static', filename='examples/example2.png') }}" class="example-img"
-            data-filename="example2.png" onclick="selectExample(this)" alt="Example 2" />
-          <img src="{{ url_for('static', filename='examples/example3.png') }}" class="example-img"
-            data-filename="example3.png" onclick="selectExample(this)" alt="Example 3" />
-        </div>
+      <!-- Example Image Previews -->
+      <div class="example-preview">
+        <img src="{{ url_for('static', filename='examples/example1.png') }}" class="example-img"
+          data-filename="example1.png" onclick="selectExample(this)" alt="Example 1" />
+        <img src="{{ url_for('static', filename='examples/example2.png') }}" class="example-img"
+          data-filename="example2.png" onclick="selectExample(this)" alt="Example 2" />
+        <img src="{{ url_for('static', filename='examples/example3.png') }}" class="example-img"
+          data-filename="example3.png" onclick="selectExample(this)" alt="Example 3" />
+      </div>
 
-        <!-- Example Files Selection -->
-        <input type="hidden" id="exampleSelect" name="example" />
+      <!-- Example Files Selection -->
+      <input type="hidden" id="exampleSelect" name="example" />
 
-        <!-- Choose Recognizer Dropdown -->
-        <div class="mb-3">
-          <label for="recognizerSelect" class="form-label"><strong>Step 2:</strong> Choose a recognizer:</label>
-          <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right" title="Hint: Choose Parseq for highest accuracy.">
+      <!-- Choose Recognizer Dropdown -->
+      <div class="mb-3">
+        <label for="recognizerSelect" class="form-label"><strong>Step 2:</strong> Choose a recognizer:</label>
+        <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right"
+          title="Hint: Choose Parseq for highest accuracy.">
           <i class="bi bi-info-circle" style="color: white;"></i>
-          </span>
-          <select class="form-select" id="recognizerSelect" name="recognizer" required>
-            <option value="" selected disabled>Show options</option>
-            <option value="parseq">Parseq</option>
-            <option value="easyocr">EasyOCR</option>
-            <option value="tesseract">Tesseract</option>
-          </select>
-        </div>
+        </span>
+        <select class="form-select" id="recognizerSelect" name="recognizer" required>
+          <option value="" selected disabled>Show options</option>
+          <option value="parseq">Parseq</option>
+          <option value="easyocr">EasyOCR</option>
+          <option value="tesseract">Tesseract</option>
+        </select>
+      </div>
 
-        <!-- Frame Interval Input -->
-        <div class="mb-3 d-none" id="frameIntervalContainer">
-          <label for="frameInterval" class="form-label"><strong>Step 3:</strong> Frame interval for video recognition:</label>
-          <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right" title="Hint: A smaller number increases the processing time while a larger number may lead to imperfect results.">
+      <!-- Frame Interval Input -->
+      <div class="mb-3 d-none" id="frameIntervalContainer">
+        <label for="frameInterval" class="form-label"><strong>Step 3:</strong> Frame interval for video
+          recognition:</label>
+        <span class="text-muted" data-bs-toggle="tooltip" data-bs-placement="right"
+          title="Hint: A smaller number increases the processing time while a larger number may lead to imperfect results.">
           <i class="bi bi-info-circle" style="color: white;"></i>
-          </span>
-          <input type="number" class="form-control" id="frameInterval" name="frameInterval" value="1" min="1" />
-        </div>
+        </span>
+        <input type="number" class="form-control" id="frameInterval" name="frameInterval" value="1" min="1" />
+      </div>
 
-        <!-- Submit Button -->
-        <button class="btn btn-success w-100" onclick="runInference()">
-          Run Inference
-        </button>
-        <p id="errorMessage" class="error-message d-none">
-          Please upload a file or choose an example, and select a recognizer to proceed.
-        </p>
+      <!-- Submit Button -->
+      <button class="btn btn-success w-100" onclick="runInference()">
+        Run Inference
+      </button>
+      <p id="errorMessage" class="error-message d-none">
+        Please upload a file or choose an example, and select a recognizer to proceed.
+      </p>
     </div>
   </div>
 
   <!-- Progress Bar -->
   <div id="progressContainer" class="container mt-3" style="display: none;">
     <div class="progress">
-      <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+      <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+        style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
     </div>
   </div>
 
   <div id="resultContainer" class="result-container" style="display: none;">
     <div id="imageContainer" class="image-container"></div>
-    <div id="resultsList" class="results-list"></div>
+    <div id="sidebar" class="sidebar">
+      <button class="btn btn-primary w-100 mt-4" href="/"
+        style="height: 35px; margin: 0 !important; background: var(--custom-green); border-radius: 10px; border: None;">
+        Upload Another File
+      </button>
+      
+      <!-- Toggle Switch to switch between raw Boxes and tracked Boxes -->
+      <div class="toggle-container" id="toggleContainer">
+        <span class="toggle-label" id="toggleLabel">Show Tracked Boxes</span>
+        <label class="switch">
+          <input type="checkbox" id="toggleBoxes" onchange="toggleSwitchLabel()" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="resultsList" class="results-list">
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
+          onchange="searchResults(this)">
+      </div>
+    </div>
   </div>
 
   <!-- Include Socket.IO client library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
-<script>
-  // Connect to the Socket.IO server
-  var socket = io();
-  
-  // Listen for progress events from the server
-  socket.on('progress', function(data) {
-    var progressBar = document.getElementById('progressBar');
-    progressBar.style.width = data.progress + '%';
-    progressBar.setAttribute('aria-valuenow', data.progress);
-  });
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
+  <script>
+    // Connect to the Socket.IO server
+    var socket = io();
 
-// Event Listener f체r den File-Input: Sobald Datei ausgew채hlt wird, wird Beispielauswahl geleert und es erfolgt kein Highlighting der Beispielbilder
-    document.getElementById("fileInput").addEventListener("change", function () {
-        if (this.files.length > 0) {
-            const exampleSelect = document.getElementById("exampleSelect");
-            exampleSelect.value = ""; // Leere die Beispielauswahl
-
-            // Entferne die "selected"-Klasse von allen Beispielbildern, sodass kein Highlight mehr angezeigt wird
-            const exampleImages = document.querySelectorAll(".example-img");
-            exampleImages.forEach((img) => img.classList.remove("selected"));
-        }
+    // Listen for progress events from the server
+    socket.on('progress', function (data) {
+      var progressBar = document.getElementById('progressBar');
+      progressBar.style.width = data.progress + '%';
+      progressBar.setAttribute('aria-valuenow', data.progress);
     });
 
-// Event Listener f체r Tooltips
+    // Event Listener f체r den File-Input: Sobald Datei ausgew채hlt wird, wird Beispielauswahl geleert und es erfolgt kein Highlighting der Beispielbilder
+    document.getElementById("fileInput").addEventListener("change", function () {
+      if (this.files.length > 0) {
+        const exampleSelect = document.getElementById("exampleSelect");
+        exampleSelect.value = ""; // Leere die Beispielauswahl
+
+        // Entferne die "selected"-Klasse von allen Beispielbildern, sodass kein Highlight mehr angezeigt wird
+        const exampleImages = document.querySelectorAll(".example-img");
+        exampleImages.forEach((img) => img.classList.remove("selected"));
+      }
+    });
+
+    // Event Listener f체r Tooltips
     document.addEventListener('DOMContentLoaded', function () {
       var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
       var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -122,14 +149,14 @@
       })
     });
 
-// Event Listener Frame Interval Anzeige
-    document.addEventListener('DOMContentLoaded', function() {
+    // Event Listener Frame Interval Anzeige
+    document.addEventListener('DOMContentLoaded', function () {
       const fileInput = document.getElementById('fileInput');
       const frameIntervalContainer = document.getElementById('frameIntervalContainer');
 
-      fileInput.addEventListener('change', function() {
+      fileInput.addEventListener('change', function () {
         const file = this.files[0];
-        
+
         if (file && file.type.startsWith('video/')) {
           frameIntervalContainer.classList.remove('d-none');
         } else {
@@ -141,4 +168,5 @@
     });
 
   </script>
+
 </html>
