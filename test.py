@@ -135,6 +135,7 @@ def test(config):
         print("Average CER: ", avg_cer)
         print("Average WER: ", avg_wer)
         print("Overall Accuracy: ", overall_accuracy)
+        print("Overall Character Accuracy: ", 1.0 - avg_cer)
     else:
         print("No detections were processed.")
 

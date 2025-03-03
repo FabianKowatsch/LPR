@@ -153,7 +153,9 @@ def predict(config):
                 lp_text = ocr(lp_image)
 
                 # Filter text, replace some symbols with spaces
-                text_filtered =  re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
+                lp_text_normalized = normalize_text(lp_text)
+                text_filtered = re.sub(r'[^A-Z0-9]', '', lp_text_normalized)
+                text_filtered = re.sub(r'([A-Z0-9])\1{4}', lambda m: m.group(1) * 4, text_filtered)
 
                 box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
 
@@ -386,6 +388,16 @@ def show_image(img: np.ndarray, plate_image: np.ndarray, predicted_text: str, co
 
     plt.draw()
     plt.pause(1.0)
+
+def normalize_text(text):
+    replacements = {
+        'Ä': 'A', 'Ö': 'O', 'Ü': 'U',
+        'ä': 'A', 'ö': 'O', 'ü': 'U',
+        'ß': 'SS'
+    }
+    for umlaut, replacement in replacements.items():
+        text = text.replace(umlaut, replacement)
+    return text
 
 
 
