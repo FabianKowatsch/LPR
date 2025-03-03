@@ -144,7 +144,11 @@ function processResults(results) {
 
     // Add license plate detection results
     results.results.forEach((item) => {
-        addLicensePlate(item);
+        if (item["box_raw"] !== undefined) {
+            rawBoxes.push(item)
+        } else {
+            addLicensePlate(item);
+        }
     })
     findHigestConfidenceText();
     filterLicensePlates();
@@ -160,7 +164,8 @@ function processResults(results) {
 
 function showLicensePlateList(plates) {
     const resultsList = document.getElementById("resultsList");
-    resultsList.innerHTML = "";
+    resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
+        onchange="searchResults(this)">`;
 
     plates.forEach((plate) => {
         console.log(`Track ID: ${plate.trackID}, Plate text: ${plate.lpText}, Max Confidence: ${plate.maxConfidence}`);
@@ -216,7 +221,9 @@ function showLicensePlateList(plates) {
  * @param {HTMLMediaElement} media - The media element (image or video).
  */
 function highlightBoundingBoxes(plates, overlay, media, framerate) {
-    function showBoundingBox(bbox, plateID) {
+    const toggleBoxes = document.getElementById("toggleBoxes");
+
+    function showBoundingBox(bbox, plateID, boxColor) {
         // Get media dimensions
         const mediaRect = media.getBoundingClientRect();
         const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
@@ -230,7 +237,7 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
             top: ${bbox.y * scaleY}px;
             width: ${bbox.width * scaleX}px;
             height: ${bbox.height * scaleY}px;
-            outline: 3px solid rgb(191, 10, 70); 
+            outline: 2px solid ${boxColor}; 
             background: rgba(191, 10, 70, 0.1);
             pointer-events: none;
         `;
@@ -240,14 +247,17 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         label.innerText = plateID;
         label.style = `
             position: absolute;
-            left: -3px; /* Align with outline */
+            left: -1.5px; /* Align with outline */
             top: -28px; /* Adjust based on outline */
-            width: calc(100% + 6px);
-            padding: 4px;
-            background: rgb(191, 10, 70);
+            width: fit-content;
+            padding: 2px;
+            background: ${boxColor};
             color: white;
             font-weight: bold;
-            font-size: 14px;
+            text-align: center;
+            white-space: nowrap; /* Prevent text wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis;
             text-align: center;
         `;
 
@@ -256,51 +266,66 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         overlay.appendChild(bboxContainer);
     }
 
+    function showFirstBoundingBoxes() {
+        for (let i = 0; i < plates.length; i++) {
+            const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
+            showBoundingBox(bbox, plates[i].filteredText, "rgb(191, 10, 70)");
+        }
+    }
 
     function showCurrentBoundingBoxes() {
         overlay.innerHTML = ""; // Clear previous bounding boxes
-        const currentFrame = Math.ceil(media.currentTime * framerate);
+        const currentFrame = Math.floor(media.currentTime * framerate);
 
-        plates.forEach((plate, index) => {
-            if (currentFrame < plate.frames[0]
-                || currentFrame > plate.frames[plate.frames.length - 1]
-            ) {
-                return;
-            }
-
-            // Find the closest bounding boxes for interpolation
-            let previousIndex = null;
-            let nextIndex = null;
-
-            for (let i = 0; i < plate.frames.length - 1; i++) {
-                if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
-                    previousIndex = i;
-                    nextIndex = i + 1;
-                    break;
+        if (toggleBoxes.checked) {
+            plates.forEach((plate, index) => {
+                if (currentFrame < plate.frames[0]
+                    || currentFrame > plate.frames[plate.frames.length - 1]
+                ) {
+                    return;
                 }
-            }
 
-            if (nextIndex === null || previousIndex === null) {
-                return;
-            }
+                // Find the closest bounding boxes for interpolation
+                let previousIndex = null;
+                let nextIndex = null;
 
-            const previousFrame = plate.frames[previousIndex];
-            const nextFrame = plate.frames[nextIndex];
+                for (let i = 0; i < plate.frames.length - 1; i++) {
+                    if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
+                        previousIndex = i;
+                        nextIndex = i + 1;
+                        break;
+                    }
+                }
 
-            const distance = Math.abs(nextFrame - previousFrame);
-            const currentDistance = Math.abs(currentFrame - previousFrame);
-            const time = currentDistance / distance;
+                if (nextIndex === null || previousIndex === null) {
+                    return;
+                }
 
-            const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
-            const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
+                const previousFrame = plate.frames[previousIndex];
+                const nextFrame = plate.frames[nextIndex];
 
-            const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
-            showBoundingBox(bbox, plate.filteredText);
-        });
+                const distance = Math.abs(nextFrame - previousFrame);
+                const currentDistance = Math.abs(currentFrame - previousFrame);
+                const time = currentDistance / distance;
+
+                const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
+                const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
+
+                const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+                showBoundingBox(bbox, plate.filteredText, "rgb(191, 10, 70)");
+            });
+        } else {
+            rawBoxes.forEach((rawBox, index) => {
+                const frame = Math.floor(rawBox["frame"]);
+                if (frame == currentFrame) {
+                    const bbox = parseBbox(rawBox["box_raw"]);
+                    showBoundingBox(bbox, index, "green");
+                }
+            });
+        }
     }
 
     let animationFrameId = null;
-
     function updateBoundingBoxes() {
         showCurrentBoundingBoxes();
         animationFrameId = requestAnimationFrame(updateBoundingBoxes);
@@ -329,13 +354,18 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
         media.addEventListener('timeupdate', () => {
             showCurrentBoundingBoxes();
         });
+
+        toggleBoxes.addEventListener("change", () => {
+            overlay.innerHTML = "";
+            showCurrentBoundingBoxes();
+        });
     } else {
         media.addEventListener('load', () => {
-            for (let i = 0; i < plates.length; i++) {
-                const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-                showBoundingBox(bbox, plates[i].filteredText);
-            }
+            showFirstBoundingBoxes();
         })
+
+        const toggleContainer = document.getElementById("toggleContainer");
+        toggleContainer.style.display = "none";
     }
 }
 

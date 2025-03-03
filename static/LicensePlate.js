@@ -1,4 +1,5 @@
 let licensePlates = [];
+let rawBoxes = [];
 class LicensePlate {
     constructor(trackID) {
         this.trackID = trackID;
@@ -119,7 +120,7 @@ function filterLicensePlates() {
 
 function joinLicensePlates() {
     // Join license plates that have a close levenshtein distance
-    const threshold = 2; // Allow up to 1 character differences
+    const threshold = 1; // Allow up to x character differences
 
     for (let i = 0; i < licensePlates.length; i++) {
         for (let j = i + 1; j < licensePlates.length; j++) {

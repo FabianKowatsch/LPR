@@ -56,3 +56,8 @@ function selectExample(element) {
     exampleImages.forEach((img) => img.classList.remove("selected"));
     element.classList.add("selected");
 }
+
+function toggleSwitchLabel() {
+    const label = document.getElementById("toggleLabel");
+    label.innerText = toggleBoxes.checked ? "Show Tracked Boxes" : "Show Raw Boxes";
+}
