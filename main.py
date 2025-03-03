@@ -289,9 +289,9 @@ def predict_from_video(config):
                     lp_text, confidence = ocr(lp_image)
                     text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
 
+                    print(f"Confidence: {confidence}")
                     if "OCR failed" in lp_text:
                         continue
-
 
                     # Append results with tracking ID
                     results.append({

@@ -172,13 +172,35 @@ input[type="file"]::file-selector-button:hover {
     overflow: hidden;
 }
 
-.results-list {
+.sidebar {
     display: flex;
     flex-direction: column;
     gap: 5px;
     width: 20%;
     min-width: 200px;
     height: 100%;
+    padding: 0;
+}
+
+.search-bar {
+    display: flex;
+    height: 40px;
+    padding: 10px;
+
+    color: black;
+    background-color: white;
+    border-radius: 10px;
+    border: 1px solid var(--custom-light-grey);
+
+    overflow: auto;
+}
+
+.results-list {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 5px;
+    height: auto;
     padding: 5px;
 
     background-color: color-mix(in srgb, var(--standard-color) 80%, black 20%);

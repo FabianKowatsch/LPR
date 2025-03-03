@@ -1,147 +1,5 @@
-// Function to select an example image
-function selectExample(element) {
-    const exampleSelect = document.getElementById("exampleSelect");
-    const exampleImages = document.querySelectorAll(".example-img");
-
-    // Set the hidden input value to the selected example's filename
-    exampleSelect.value = element.getAttribute("data-filename");
-
-    // Highlight the selected image
-    exampleImages.forEach((img) => img.classList.remove("selected"));
-    element.classList.add("selected");
-}
-
-
-
-let licensePlates = [];
-class LicensePlate {
-    constructor(trackID) {
-        this.trackID = trackID;
-        this.lpText = "";  // License plate text
-        this.filteredText = "";
-        this.image = null;
-        this.maxConfidence = 0;
-
-        this.lpTexts = [];
-        this.filteredTexts = [];
-        this.images = [];
-        this.confidences = [];
-
-        this.boundingBoxes = [];
-        this.frames = [];      // Array to store frames where the license plate is detected
-    }
-
-    // Add a frame and corresponding bounding box
-    addDetection(lpText, filteredText, confidence, image, box, frame) {
-        this.lpTexts.push(lpText);
-        this.filteredTexts.push(filteredText);
-        this.confidences.push(confidence);
-        this.images.push(image);
-
-        this.boundingBoxes.push(box);
-        this.frames.push(frame);
-    }
-
-    joinLicensePlate(licensePlate) {
-        if (this.maxConfidence < licensePlate.maxConfidence) {
-            this.lpText = licensePlate.lpText;
-            this.filteredText = licensePlate.filteredText;
-            this.image = licensePlate.image;
-            this.maxConfidence = licensePlate.maxConfidence;
-        }
-
-        this.boundingBoxes = this.boundingBoxes.concat(licensePlate.boundingBoxes);
-        this.frames = this.frames.concat(licensePlate.frames);
-    }
-
-    findHigestConfidenceText() {
-        let highestConfidence = 0;
-        let highestConfidenceIndex = 0;
-
-        // get the median length of the license plate texts strings
-        const medianLength = this.lpTexts.reduce((a, b) => a + b.length, 0) / this.lpTexts.length;
-
-        // search for the highest confidence text, filter out the ones that are significantly shorter
-        for (let i = 0; i < this.confidences.length; i++) {
-            if (this.confidences[i] > highestConfidence && this.lpTexts[i].length > medianLength * 0.75) {
-                highestConfidence = this.confidences[i];
-                highestConfidenceIndex = i;
-            }
-        }
-
-        this.lpText = this.lpTexts[highestConfidenceIndex];
-        this.filteredText = this.filteredTexts[highestConfidenceIndex];
-        this.image = this.images[highestConfidenceIndex];
-        this.maxConfidence = highestConfidence;
-
-        console.log("Highest confidence text:", this.lpText, "Confidence:", this.maxConfidence, "Median length:", medianLength);
-    }
-}
-
-// Function to add a license plate to the list, if it already exists add the frame and bbox
-function addLicensePlate(plateItem) {
-    let existingLicensePlate = null;
-
-    // Check if the license plate already exists in the array
-    for (let lp of licensePlates) {
-        if (plateItem.track_id === lp.trackID) {
-            existingLicensePlate = lp;
-            break;
-        }
-    }
-
-    // If license plate exists, add the frame and bbox
-    if (existingLicensePlate) {
-        existingLicensePlate.addDetection(
-            plateItem.lp_text,
-            plateItem.text_filtered,
-            plateItem.confidence,
-            plateItem.image,
-            plateItem.box,
-            plateItem.frame || 0
-        );
-    } else {
-        // Otherwise, create a new LicensePlate object and add it to the list
-        if (!plateItem.error) {
-            const newLicensePlate = new LicensePlate(plateItem.track_id);
-            newLicensePlate.addDetection(
-                plateItem.lp_text,
-                plateItem.text_filtered,
-                plateItem.confidence,
-                plateItem.image,
-                plateItem.box,
-                plateItem.frame || 0
-            );
-            licensePlates.push(newLicensePlate);
-        } else {
-            const newLicensePlate = new LicensePlate(plateItem.error);
-            licensePlates.push(newLicensePlate);
-        }
-
-    }
-
-}
-
-function findHigestConfidenceText() {
-    licensePlates.forEach((plate) => plate.findHigestConfidenceText());
-}
-
-function joinLicensePlates() {
-    // Join license plates that have a close levenshtein distance
-    const threshold = 2; // Allow up to 1 character differences
-
-    for (let i = 0; i < licensePlates.length; i++) {
-        for (let j = i + 1; j < licensePlates.length; j++) {
-            const distance = levenshtein(licensePlates[i].lpText, licensePlates[j].lpText);
-            if (distance <= threshold) {
-                licensePlates[i].joinLicensePlate(licensePlates[j]);
-                licensePlates.splice(j, 1);
-                j--; // Decrement j to account for the removed element
-            }
-        }
-    }
-}
-
+let frameRate = 30;
+// Functions to upload file and process the results_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 function runInference() {
     const fileInput = document.getElementById("fileInput");
     const exampleSelect = document.getElementById("exampleSelect");
@@ -197,7 +55,6 @@ function processResults(results) {
     const uploadContainer = document.getElementById("uploadContainer");
     const resultContainer = document.getElementById("resultContainer");
     const imageContainer = document.getElementById("imageContainer");
-    const resultsList = document.getElementById("resultsList");
 
     // Hide the upload container and show the result container
     uploadContainer.style.display = "none";
@@ -205,7 +62,6 @@ function processResults(results) {
 
     // Clear previous content
     imageContainer.innerHTML = "";
-    resultsList.innerHTML = "";
 
     // Determine if the uploaded file is a video
     const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
@@ -218,6 +74,7 @@ function processResults(results) {
     if (isVideo) {
         // Create a <video> element
         mediaElement = document.createElement("video");
+        mediaElement.id = "videoElement";
         mediaElement.src = results.file_url;
         mediaElement.controls = true;
         mediaElement.autoplay = false;
@@ -260,6 +117,7 @@ function processResults(results) {
 
         // Create the original image
         mediaElement = document.createElement("img");
+        mediaElement.id = "imageElement";
         mediaElement.src = results.file_url;
         mediaElement.alt = results.filename;
         mediaElement.style = `
@@ -289,13 +147,23 @@ function processResults(results) {
         addLicensePlate(item);
     })
     findHigestConfidenceText();
+    filterLicensePlates();
     joinLicensePlates();
 
-
-    const frameRate = results.results[0]?.fps || 30;
+    if (results.results[0]?.fps) {
+        frameRate = results.results[0]?.fps
+    }
     // Loop through inference results and create result items
-    licensePlates.forEach((plate) => {
-        console.log(`Track ID: ${plate.trackID}, Number of boxes: ${plate.boundingBoxes.length}`);
+    showLicensePlateList(licensePlates);
+    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
+}
+
+function showLicensePlateList(plates) {
+    const resultsList = document.getElementById("resultsList");
+    resultsList.innerHTML = "";
+
+    plates.forEach((plate) => {
+        console.log(`Track ID: ${plate.trackID}, Plate text: ${plate.lpText}, Max Confidence: ${plate.maxConfidence}`);
 
         const resultItem = document.createElement("div");
         resultItem.classList.add("result-item");
@@ -321,17 +189,11 @@ function processResults(results) {
         filteredTextElement.innerHTML = `<strong>Filtered:</strong> ${plate.filteredText}`;
         resultItem.appendChild(filteredTextElement);
 
-        // Back to Home Button hinzufügen
-        const backButton = document.createElement("a");
-        backButton.href = "/";
-        backButton.className = "btn btn-primary w-100 mt-4";
-        backButton.textContent = "Upload Another File";
-        resultsList.appendChild(backButton);
-
         // Add event listener for clicking result items
         resultItem.style.cursor = "pointer";
         resultItem.addEventListener("click", () => {
-            if (isVideo && mediaElement) {
+            const videoElement = document.getElementById("videoElement");
+            if (videoElement) {
                 // Calculate the time from the frame number
                 const frameNumber = plate.frames[0]; // The frame number you want to seek to
 
@@ -339,14 +201,12 @@ function processResults(results) {
                 const timeInSeconds = frameNumber / frameRate;
 
                 // Set the video to the exact time
-                mediaElement.currentTime = timeInSeconds;
+                videoElement.currentTime = timeInSeconds;
             }
         });
 
         resultsList.appendChild(resultItem);
     });
-
-    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
 }
 
 /**
@@ -479,42 +339,8 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
     }
 }
 
-
-// UTILS_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-// Function to calculate Levenshtein distance
-function levenshtein(a, b) {
-    const tmp = [];
-    for (let i = 0; i <= b.length; i++) tmp[i] = [i];
-    for (let j = 0; j <= a.length; j++) tmp[0][j] = j;
-
-    for (let i = 1; i <= b.length; i++) {
-        for (let j = 1; j <= a.length; j++) {
-            tmp[i][j] = Math.min(
-                tmp[i - 1][j] + 1,        // Deletion
-                tmp[i][j - 1] + 1,        // Insertion
-                tmp[i - 1][j - 1] + (a[j - 1] === b[i - 1] ? 0 : 1)  // Substitution
-            );
-        }
-    }
-
-    return tmp[b.length][a.length];
-}
-
-function parseBbox(box) {
-    return {
-        x: box[0],
-        y: box[1],
-        width: box[2] - box[0],
-        height: box[3] - box[1]
-    };
-}
-
-function interpolateBoundingBoxes(bbox1, bbox2, t) {
-    return {
-        x: bbox1.x + (bbox2.x - bbox1.x) * t,
-        y: bbox1.y + (bbox2.y - bbox1.y) * t,
-        width: bbox1.width + (bbox2.width - bbox1.width) * t,
-        height: bbox1.height + (bbox2.height - bbox1.height) * t
-    };
+function searchResults(searchBar) {
+    const plates = searchLicensePlates(searchBar.value)
+    showLicensePlateList(plates);
 }
 
