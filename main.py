@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import yaml
 import torch
 import re
+
+from deep_sort_realtime.deepsort_tracker import DeepSort
 from modules.detection import LPD_Module
 from modules.ocr import OCR_Module
 from modules.upscaling import Upscaler
@@ -83,7 +85,8 @@ def test(config):
         for box in boxes:
 
             # Crop the image to simplify ocr
-            lp_image = crop_image(image, box)
+            xyxy = map(int, box.xyxy[0])
+            lp_image = crop_image(image, xyxy)
 
             # Upscaling
             lp_image = upscaler(lp_image)
@@ -134,7 +137,8 @@ def predict(config):
         for j, box in enumerate(boxes):
             try:
                 # Crop the image to simplify ocr
-                lp_image = crop_image(image, box)
+                xyxy = map(int, box.xyxy[0])
+                lp_image = crop_image(image, xyxy)
 
 
                 # Upscaling
@@ -150,7 +154,7 @@ def predict(config):
 
 
                 # Text recognition
-                lp_text = ocr(lp_image)
+                lp_text, confidence = ocr(lp_image)
 
                 # Filter text, replace some symbols with spaces
                 lp_text_normalized = normalize_text(lp_text)
@@ -189,46 +193,6 @@ def predict(config):
 
     return results
 
-# def predict_from_video(config):
-#     video_path = config["video_path"]
-    
-#     detector = LPD_Module(config["lpd_checkpoint_path"])
-#     ocr = OCR_Module(config["recognizer"])
-#     upscaler = Upscaler(config["upscaler"])
-#     image_processing = Processing(config["image_processing"])
-    
-#     # Directly process the video with YOLO
-#     results = detector(video_path)
-
-#     processed_results = []
-    
-#     for result in results:
-#         frame_count = result.frame_idx  # YOLO provides frame index
-#         fps = result.speed['fps'] if 'fps' in result.speed else 30  # Default FPS if missing
-#         seconds = frame_count / fps
-#         hours = int(seconds // 3600)
-#         minutes = int((seconds % 3600) // 60)
-#         seconds = int(seconds % 60)
-#         time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        
-#         for box in result.boxes:
-#             lp_image = crop_image(result.orig_img, box)
-#             lp_image = upscaler(lp_image)
-#             lp_image = image_processing(lp_image)
-#             lp_text = ocr(lp_image)
-#             text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
-            
-#             if "OCR failed" in lp_text:
-#                 continue
-            
-#             processed_results.append({
-#                 "frame": frame_count,
-#                 "time": time_str,
-#                 "lp_text": lp_text,
-#                 "text_filtered": text_filtered
-#             })
-    
-#     return processed_results
 
 def predict_from_video(config, progress_callback=None):
     video_path = config["data_path"]
@@ -243,9 +207,6 @@ def predict_from_video(config, progress_callback=None):
     upscaler = Upscaler(config["upscaler"])
     image_processing = Processing(config["image_processing"])
     frame_interval = config["frame_interval"]
-    
-    frame_count = 0
-    results = []
 
     # Create output folder if it doesn't exist
     cropped_dir = "static/uploads/"
@@ -253,10 +214,24 @@ def predict_from_video(config, progress_callback=None):
 
     fps = cap.get(cv2.CAP_PROP_FPS)  # Get video FPS
 
+    # Initialize DeepSORT tracker
+    tracker = DeepSort(max_age=20)  # Adjust tracking parameters as needed
+
+    frame_count = 0
+    results = []
     while cap.isOpened():
+        print(f"___Frame {frame_count}___")
         ret, frame = cap.read()
         if not ret:
             break  # Stop when the video ends
+
+        # Calculate timestamp (HH:MM:SS)
+        seconds = frame_count / fps
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds = int(seconds % 60)
+        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        print(f"Time: {time_str}")
 
         if frame_count % frame_interval == 0:
             if progress_callback:
@@ -264,62 +239,99 @@ def predict_from_video(config, progress_callback=None):
                 progress = int((frame_count / total_frames) * 100)
                 progress_callback(progress)
             boxes = detector(frame)
+            center_boxes = []  # Prepare for DeepSORT
+            bounding_boxes = []
+
+
             for j, box in enumerate(boxes):
                 try:
-                    lp_image = crop_image(frame, box)
+                    x1, y1, x2, y2 = box.xyxy.cpu().numpy().tolist()[0]
+                    w = x2 - x1
+                    h = y2 - y1
+                    cx = (x1 + x2) / 2
+                    cy = (y1 + y2) / 2
+                    conf = 1.0  # Assume high confidence since we trust the detector
+                    
+                    center_boxes.append(([cx, cy, w, h], conf, "license_plate"))  # Format for DeepSORT
+                    bounding_boxes.append([x1, y1, x2, y2])
 
-                    # Save the cropped license plate image
-                    cropped_image_path = f"{cropped_dir}cropped_plate_frame_{frame_count}_plate_{j}.png"
+                except Exception as e:
+                    print(f"Error processing plate in frame {frame_count}: {e}")
+                    continue
+            # Update tracker with center_boxes
+            tracked_objects = tracker.update_tracks(center_boxes, frame=frame)
+
+            for track in tracked_objects:
+                if not track.is_confirmed():
+                    print("Not confirmed")
+                    continue
+                
+                track_id = track.track_id  # Unique object ID from DeepSORT
+                tracker_box = track.to_tlbr()
+
+                # Check if the tracker box overlaps with any of the bounding boxes
+                detector_box = None
+                iou_max = 0
+                for box in bounding_boxes:
+                    iou = calculate_iou(box, tracker_box)
+                    if iou > iou_max:
+                        iou_max = iou
+                        detector_box = box
+
+                if detector_box is None:
+                    continue
+                                    
+                # Use YOLO bounding box (not DeepSORT's predicted one)
+                x1, y1, x2, y2 = list(map(int, detector_box))
+                try:
+                    # Crop and process image
+                    lp_image = crop_image(frame, list(map(int, detector_box)))
+
+                    # Save cropped image
+                    cropped_image_path = f"{cropped_dir}tracked_plate_{track_id}_frame_{frame_count}.png"
                     cv2.imwrite(cropped_image_path, lp_image)
 
-                    # Upscale
+                    # Upscale and process
                     lp_image = upscaler(lp_image)
-
-                    # Process
                     lp_image = image_processing(lp_image)
 
                     # OCR
-                    lp_text = ocr(lp_image)
+                    lp_text, confidence = ocr(lp_image)
                     text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
 
                     if "OCR failed" in lp_text:
                         continue
 
-                    # Calculate timestamp (HH:MM:SS)
-                    seconds = frame_count / fps
-                    hours = int(seconds // 3600)
-                    minutes = int((seconds % 3600) // 60)
-                    seconds = int(seconds % 60)
-                    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-                    box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
-
-                    # Append results with cropped image
+                    # Append results with tracking ID
                     results.append({
                         "frame": frame_count,
                         "fps": fps,
                         "time": time_str,
-                        "image": cropped_image_path,  # Add the path to the cropped image
-                        "box": box_serializable,
+                        "track_id": int(track_id),  # Add tracking ID
+                        "image": cropped_image_path,  # Path to cropped image
+                        "confidence": confidence,
+                        "box": [x1, y1, x2, y2],
                         "lp_text": lp_text,
                         "text_filtered": text_filtered
                     })
 
                 except Exception as e:
-                    print(f"Error processing plate in frame {frame_count}: {e}")
+                    print(f"Error processing tracked plate {track_id} in frame {frame_count}: {e}")
                     continue
 
         frame_count += 1
 
     cap.release()
-    print(f"First Box: {results[0]['box']}")
-    return results
-
+    if (len(results) == 0):
+        print("No license plates detected in the video.")
+    else:
+        return results
 
 
 # UTILS _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-def crop_image(image, box, offset_left=13, offset_right=30):
-    x1, y1, x2, y2 = map(int, box.xyxy[0])
+def crop_image(image,xyxy, offset_left=13, offset_right=30):
+    x1, y1, x2, y2 = xyxy
     # Entferne einen kleinen Rand am linken Rand (offset)
     return image[y1:y2, (x1 + ((x2-x1)//offset_left)) : (x2 - ((x2-x1)//offset_right)), :].copy()
     
@@ -399,6 +411,31 @@ def normalize_text(text):
         text = text.replace(umlaut, replacement)
     return text
 
+def calculate_iou(box1, box2):
+    """
+    Calculate the Intersection over Union (IoU) between two bounding boxes.
+    Each box should be in format [x1, y1, x2, y2].
+    """
+    # Find coordinates of intersection
+    x1_inter = max(box1[0], box2[0])
+    y1_inter = max(box1[1], box2[1])
+    x2_inter = min(box1[2], box2[2])
+    y2_inter = min(box1[3], box2[3])
+    
+    # Check if boxes intersect
+    if x2_inter < x1_inter or y2_inter < y1_inter:
+        return 0.0
+    
+    # Calculate area of intersection
+    intersection_area = (x2_inter - x1_inter) * (y2_inter - y1_inter)
+    
+    # Calculate areas of both boxes
+    box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    
+    # Calculate IoU
+    iou = intersection_area / float(box1_area + box2_area - intersection_area)
+    return iou
 
 
 def main():
