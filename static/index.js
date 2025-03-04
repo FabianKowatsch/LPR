@@ -4,7 +4,7 @@ function runInference() {
     const fileInput = document.getElementById("fileInput");
     const exampleSelect = document.getElementById("exampleSelect");
     const recognizerSelect = document.getElementById("recognizerSelect");
-    const frameInterval = document.getElementById("frameInterval");
+    // const frameInterval = document.getElementById("frameInterval");
     const errorMessage = document.getElementById("errorMessage");
 
     if (
@@ -20,7 +20,7 @@ function runInference() {
     const file = fileInput.files[0];
     const examplePath = exampleSelect.value || null;
     const recognizer = recognizerSelect.value;
-    const frameIntervalValue = frameInterval.value || 1;
+    const frameIntervalValue = 1; //frameInterval.value || 1;
 
     let localImageUrl = null;
     if (file) localImageUrl = file ? URL.createObjectURL(file) : null;
@@ -84,22 +84,25 @@ function processResults(results) {
     const isVideo = videoExtensions.includes(`.${fileExtension}`);
 
     let mediaElement = null;
+    let videoPlayer = null;
     let bboxOverlay = null;
 
     if (isVideo) {
         // Create a <video> element
-        mediaElement = document.createElement("video");
+        mediaElement = document.createElement("video-js");
+        mediaElement.classList.add("video-js");
         mediaElement.id = "videoElement";
-        mediaElement.src = results.file_url;
-        mediaElement.controls = true;
-        mediaElement.autoplay = false;
         mediaElement.style = `
             max-width: 100%; 
-            height: auto; 
             max-height: 100%; 
             display: block; 
             margin: auto;
         `;
+
+        const source = document.createElement("source");
+        source.src = results.file_url;
+        source.type = "video/mp4";
+        mediaElement.appendChild(source);
 
         // Create bounding box overlay for video
         bboxOverlay = document.createElement("div");
@@ -116,12 +119,26 @@ function processResults(results) {
         const mediaWrapper = document.createElement("div");
         mediaWrapper.style = `
             position: relative; 
-            display: inline-block;
+            display: flex;
+            width: 100%;
+            height: auto;
         `;
         mediaWrapper.appendChild(mediaElement);
         mediaWrapper.appendChild(bboxOverlay);
 
         imageContainer.appendChild(mediaWrapper);
+
+        videoPlayer = videojs('videoElement', {
+            controls: true,
+            autoplay: false,
+            preload: 'auto',
+            muted: true,
+            aspectRatio: '16:9',
+            controlBar: {
+                volumePanel: false,  // Hides the audio controls (mute/unmute)
+                fullscreenToggle: false,  // Hides the fullscreen button
+            },
+        });
     } else {
         // Create a container for image and bounding boxes
         const mediaWrapper = document.createElement("div");
@@ -189,7 +206,7 @@ function processResults(results) {
 
     // Loop through inference results and create result items
     showLicensePlateList(licensePlates);
-    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, frameRate)
+    highlightBoundingBoxes(licensePlates, bboxOverlay, mediaElement, videoPlayer);
 }
 
 function showLicensePlateList(plates) {
@@ -242,8 +259,8 @@ function showLicensePlateList(plates) {
         // Add event listener for clicking result items
         resultItem.style.cursor = "pointer";
         resultItem.addEventListener("click", () => {
-            const videoElement = document.getElementById("videoElement");
-            if (videoElement) {
+            const videoPlayer = videojs('videoElement');
+            if (videoPlayer) {
                 // Calculate the time from the frame number
                 const frameNumber = plate.frames[0]; // Use the first frame
 
@@ -251,7 +268,7 @@ function showLicensePlateList(plates) {
                 const timeInSeconds = frameNumber / frameRate;
 
                 // Set the video to the exact time
-                videoElement.currentTime = timeInSeconds;
+                videoPlayer.currentTime(timeInSeconds);
             }
         });
 
@@ -265,15 +282,29 @@ function showLicensePlateList(plates) {
  * @param {HTMLElement} overlay - The overlay container.
  * @param {HTMLMediaElement} media - The media element (image or video).
  */
-function highlightBoundingBoxes(plates, overlay, media, framerate) {
+function highlightBoundingBoxes(plates, overlay, media, videoPlayer) {
     const toggleBoxes = document.getElementById("toggleBoxes");
 
-    function showBoundingBox(bbox, plateID, boxColor) {
-        // Get media dimensions
-        const mediaRect = media.getBoundingClientRect();
-        const scaleX = mediaRect.width / (media.naturalWidth || media.videoWidth);
-        const scaleY = mediaRect.height / (media.naturalHeight || media.videoHeight);
+    // let firstFrameTime = null;
+    let mediaRect = null;
+    let scaleX = 1;
+    let scaleY = 1;
+    let frameOffset = 0;
+    let frameCallbackId = null;
 
+    function getMediaScale() {
+        if (videoPlayer) {
+            mediaRect = videoPlayer.el().getBoundingClientRect();
+            scaleX = mediaRect.width / (videoPlayer.videoWidth() || videoPlayer.el().videoWidth);
+            scaleY = mediaRect.height / (videoPlayer.videoHeight() || videoPlayer.el().videoHeight);
+        } else {
+            mediaRect = media.getBoundingClientRect();
+            scaleX = mediaRect.width / (media.naturalWidth);
+            scaleY = mediaRect.height / (media.naturalHeight);
+        }
+    }
+
+    function showBoundingBox(bbox, plateID, boxColor) {
         // Create bounding box container
         const bboxContainer = document.createElement("div");
         bboxContainer.style = `
@@ -320,7 +351,10 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
 
     function showCurrentBoundingBoxes() {
         overlay.innerHTML = ""; // Clear previous bounding boxes
-        const currentFrame = Math.floor(media.currentTime * framerate);
+
+        let currentTime = videoPlayer.currentTime();
+        const currentFrame = Math.max(0, Math.round(currentTime * frameRate) - frameOffset);
+        // console.log(`Current time: ${media.currentTime}, frameRate: ${frameRate}, Current frame: ${currentFrame}`);
 
         if (toggleBoxes.checked) {
             plates.forEach((plate, index) => {
@@ -330,34 +364,44 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
                     return;
                 }
 
-                // Find the closest bounding boxes for interpolation
-                let previousIndex = null;
-                let nextIndex = null;
-
-                for (let i = 0; i < plate.frames.length - 1; i++) {
-                    if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
-                        previousIndex = i;
-                        nextIndex = i + 1;
-                        break;
+                let bbox = null;
+                let color = "rgb(191, 10, 70)";
+                const currentFrameIndex = plate.frames.indexOf(currentFrame);
+                if (currentFrameIndex === -1) {
+                    // Find the closest bounding boxes for interpolation
+                    let previousIndex = null;
+                    let nextIndex = null;
+                    for (let i = 0; i < plate.frames.length - 1; i++) {
+                        if (plate.frames[i] <= currentFrame && plate.frames[i + 1] >= currentFrame) {
+                            previousIndex = i;
+                            nextIndex = i + 1;
+                            break;
+                        }
                     }
+
+                    if (nextIndex === null || previousIndex === null) {
+                        return;
+                    }
+
+                    const previousFrame = plate.frames[previousIndex];
+                    const nextFrame = plate.frames[nextIndex];
+
+                    const distance = Math.abs(nextFrame - previousFrame);
+                    const currentDistance = Math.abs(currentFrame - previousFrame);
+                    const time = currentDistance / distance;
+
+                    const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
+                    const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
+
+                    color = plate.isTracked[previousIndex] ? color : "orange";
+                    bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
+                } else {
+                    color = plate.isTracked[currentFrameIndex] ? color : "orange";
+                    bbox = parseBbox(plate.boundingBoxes[currentFrameIndex]);
                 }
-
-                if (nextIndex === null || previousIndex === null) {
-                    return;
-                }
-
-                const previousFrame = plate.frames[previousIndex];
-                const nextFrame = plate.frames[nextIndex];
-
-                const distance = Math.abs(nextFrame - previousFrame);
-                const currentDistance = Math.abs(currentFrame - previousFrame);
-                const time = currentDistance / distance;
-
-                const previousBbox = parseBbox(plate.boundingBoxes[previousIndex]);
-                const nextBbox = parseBbox(plate.boundingBoxes[nextIndex]);
-
-                const bbox = interpolateBoundingBoxes(previousBbox, nextBbox, time);
-                showBoundingBox(bbox, plate.filteredText, "rgb(191, 10, 70)");
+                
+                // const color = plate.isTracked ? "rgb(191, 10, 70)" : "blue";
+                showBoundingBox(bbox, plate.filteredText, color);
             });
         } else {
             rawBoxes.forEach((rawBox, index) => {
@@ -371,40 +415,53 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
     }
 
     let animationFrameId = null;
+    let previousFrame = 0;
     function updateBoundingBoxes() {
-        showCurrentBoundingBoxes();
+        if (!videoPlayer || videoPlayer.paused() || videoPlayer.ended()) {
+            return; // Stop updates if video is not playing
+        }
+
+        const currentTime = videoPlayer.currentTime();
+        const currentFrame = Math.floor(currentTime * frameRate);
+        // console.log(`Current time: ${currentTime}, frameRate: ${frameRate}, Current frame: ${currentFrame}`);
+        if (currentFrame !== previousFrame) { // Only update if the frame changed
+            previousFrame = currentFrame;
+            showCurrentBoundingBoxes();
+        }
+
         animationFrameId = requestAnimationFrame(updateBoundingBoxes);
     }
 
-    if (media instanceof HTMLVideoElement) {
-        media.addEventListener('play', () => {
-            updateBoundingBoxes();
+    if (videoPlayer) {
+        videoPlayer.on('play', () => {
+            getMediaScale();
+            animationFrameId = requestAnimationFrame(updateBoundingBoxes);
         });
 
-        media.addEventListener('pause', () => {
+        videoPlayer.on('pause', () => {
+            showCurrentBoundingBoxes();
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
             }
         });
 
-        media.addEventListener('seeked', () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
+        videoPlayer.on('seeked', () => {
+            if (videoPlayer.paused()) {
+                showCurrentBoundingBoxes();
             }
-            showCurrentBoundingBoxes();
         });
-
-        media.addEventListener('timeupdate', () => {
-            showCurrentBoundingBoxes();
+        videoPlayer.on('timeupdate', () => {
+            if (videoPlayer.paused()) {
+                showCurrentBoundingBoxes();
+            }
         });
 
         toggleBoxes.addEventListener("change", () => {
             overlay.innerHTML = "";
             showCurrentBoundingBoxes();
         });
-        
+
     } else {
         media.addEventListener('load', () => {
             showFirstBoundingBoxes();
@@ -416,14 +473,12 @@ function highlightBoundingBoxes(plates, overlay, media, framerate) {
     }
 
     window.addEventListener('resize', () => {
-        if (media instanceof HTMLVideoElement) {
+        getMediaScale();
+        if (videoPlayer) {
             showCurrentBoundingBoxes();
         } else {
             overlay.innerHTML = ""; // Clear previous bounding boxes
-            for (let i = 0; i < plates.length; i++) {
-                const bbox = parseBbox(plates[i].boundingBoxes[0][0]);
-                showBoundingBox(bbox, plates[i].filteredText);
-            }
+            showFirstBoundingBoxes();
         }
     });
 }

@@ -3,6 +3,8 @@ let rawBoxes = [];
 class LicensePlate {
     constructor(trackID) {
         this.trackID = trackID;
+        // this.isTracked = isTracked;
+
         this.lpText = "";  // License plate text
         this.filteredText = "";
         this.image = null;
@@ -12,32 +14,73 @@ class LicensePlate {
         this.filteredTexts = [];
         this.images = [];
         this.confidences = [];
+        this.isTracked = []; // if a bounding box has been tracked using DeepSort or not
 
         this.boundingBoxes = [];
         this.frames = [];      // Array to store frames where the license plate is detected
     }
 
     // Add a frame and corresponding bounding box
-    addDetection(lpText, filteredText, confidence, image, box, frame) {
+    addDetection(lpText, filteredText, confidence, image, box, frame, isTracked) {
         this.lpTexts.push(lpText);
         this.filteredTexts.push(filteredText);
         this.confidences.push(confidence);
         this.images.push(image);
+        this.isTracked.push(isTracked)
 
         this.boundingBoxes.push(box);
         this.frames.push(frame);
     }
 
     joinLicensePlate(licensePlate) {
+        // Update lpText, filteredText, image, and maxConfidence if necessary
         if (this.maxConfidence < licensePlate.maxConfidence) {
             this.lpText = licensePlate.lpText;
             this.filteredText = licensePlate.filteredText;
             this.image = licensePlate.image;
             this.maxConfidence = licensePlate.maxConfidence;
         }
-
-        this.boundingBoxes = this.boundingBoxes.concat(licensePlate.boundingBoxes);
-        this.frames = this.frames.concat(licensePlate.frames);
+    
+        // Merge frames ensuring uniqueness and sorting
+        const mergedFrames = Array.from(new Set([...this.frames, ...licensePlate.frames])).sort((a, b) => a - b);
+       
+        // Create a mapping from frame to bounding box, lpText, filteredText, image, and confidence index
+        const frameToData = {};
+    
+        // Add data for the current license plate
+        this.frames.forEach((frame, index) => {
+            frameToData[frame] = {
+                boundingBox: this.boundingBoxes[index],
+                lpText: this.lpTexts[index],
+                filteredText: this.filteredTexts[index],
+                image: this.images[index],
+                confidence: this.confidences[index],
+                isTracked: this.isTracked[index]
+            };
+        });
+    
+        // Add data for the incoming license plate
+        licensePlate.frames.forEach((frame, index) => {
+            if (!frameToData[frame]) {
+                frameToData[frame] = {
+                    boundingBox: licensePlate.boundingBoxes[index],
+                    lpText: licensePlate.lpTexts[index],
+                    filteredText: licensePlate.filteredTexts[index],
+                    image: licensePlate.images[index],
+                    confidence: licensePlate.confidences[index],
+                    isTracked: licensePlate.isTracked[index]
+                };
+            }
+        });
+    
+        // Rebuild the arrays based on merged frames order
+        this.frames = mergedFrames;
+        this.boundingBoxes = mergedFrames.map(frame => frameToData[frame].boundingBox);
+        this.lpTexts = mergedFrames.map(frame => frameToData[frame].lpText);
+        this.filteredTexts = mergedFrames.map(frame => frameToData[frame].filteredText);
+        this.images = mergedFrames.map(frame => frameToData[frame].image);
+        this.confidences = mergedFrames.map(frame => frameToData[frame].confidence);
+        this.isTracked = mergedFrames.map(frame => frameToData[frame].isTracked);
     }
 
     findHigestConfidenceText() {
@@ -67,7 +110,6 @@ class LicensePlate {
 // Function to add a license plate to the list, if it already exists add the frame and bbox
 function addLicensePlate(plateItem) {
     const trackID = plateItem.track_id || licensePlates.length + 1;
-
     // Check if the license plate already exists in the array
     let existingLicensePlate = null;
     for (let lp of licensePlates) {
@@ -85,7 +127,8 @@ function addLicensePlate(plateItem) {
             plateItem.confidence || 1,
             plateItem.image,
             plateItem.box,
-            plateItem.frame || 0
+            plateItem.frame || 0,
+            plateItem.is_tracked || false,
         );
     } else {
         // Otherwise, create a new LicensePlate object and add it to the list
@@ -97,7 +140,8 @@ function addLicensePlate(plateItem) {
                 plateItem.confidence || 1,
                 plateItem.image,
                 plateItem.box,
-                plateItem.frame || 0
+                plateItem.frame || 0,
+                plateItem.is_tracked || false,
             );
             licensePlates.push(newLicensePlate);
         } else {
@@ -120,10 +164,15 @@ function filterLicensePlates() {
 
 function joinLicensePlates() {
     // Join license plates that have a close levenshtein distance
-    const threshold = 2; // Allow up to x character differences
+    const threshold = 1; // Allow up to x character differences
+
+    // licensePlates.forEach(plate => {
+    //     console.log(plate.isTracked, plate.frames)
+    // })
 
     for (let i = 0; i < licensePlates.length; i++) {
         for (let j = i + 1; j < licensePlates.length; j++) {
+
             const distance = levenshtein(licensePlates[i].lpText, licensePlates[j].lpText);
             if (distance <= threshold) {
                 licensePlates[i].joinLicensePlate(licensePlates[j]);

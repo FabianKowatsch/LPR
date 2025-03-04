@@ -232,6 +232,10 @@ input[type="file"]::file-selector-button:hover {
     color: white;
 }
 
+.result-item:hover {
+    background-color: var(--custom-light-grey);
+}
+
 .result-item img {
     max-width: 100px;
     height: auto;
