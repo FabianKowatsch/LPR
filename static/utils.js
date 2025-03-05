@@ -39,13 +39,25 @@ function isValidPlate(plateText) {
     if (plateText.length < 3 || plateText.length > 9) return false; // Length check
     if (/^[0-9]+$/.test(plateText)) return false; // Only numbers (e.g., "11", "000")
     if (/^[A-Z]+$/.test(plateText)) return false; // Only letters (e.g., "VIII", "WIN")
-    if (/[^A-Z0-9-_]/.test(plateText)) return false; // Contains special characters (e.g., "#", "..."), "-" and "_" allowed
+    // if (/[^A-Z0-9-_]/.test(plateText)) return false; // Contains special characters (e.g., "#", "..."), "-" and "_" allowed
 
     return true;
 }
 
 // Function to select an example image
 function selectExample(element) {
+    const fileInput = document.getElementById("fileInput");
+    // Falls bereits eine Datei hochgeladen wurde, frage den Nutzer
+    if (fileInput.files.length > 0) {
+        const useExample = confirm(
+            "A file has already been uploaded. Do you want to remove the file and select the example instead?"
+        );
+        if (!useExample) {
+            return; // Wenn der Nutzer ablehnt, nichts ändern
+        }
+        // Datei entfernen
+        fileInput.value = "";
+    }
     const exampleSelect = document.getElementById("exampleSelect");
     const exampleImages = document.querySelectorAll(".example-img");
 

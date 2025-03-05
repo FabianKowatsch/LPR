@@ -30,7 +30,7 @@ class OCR_Module:
 
             elif os.name == "posix":
                 # Überprüfen, ob Tesseract installiert ist
-                if not os.path.exists(r'/usr/local/bin/tesseract'):
+                if not os.path.exists(r'/usr/bin/tesseract'):
                     raise FileNotFoundError("Tesseract is not installed at '/usr/local/bin/tesseract'. Please install it using Homebrew (brew install tesseract).")
             
                 # Setze den Pfad zu Tesseract

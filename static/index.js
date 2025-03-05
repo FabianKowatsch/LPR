@@ -464,6 +464,7 @@ function highlightBoundingBoxes(plates, overlay, media, videoPlayer) {
 
     } else {
         media.addEventListener('load', () => {
+            getMediaScale();
             showFirstBoundingBoxes();
         })
 
