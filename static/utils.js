@@ -36,7 +36,7 @@ function interpolateBoundingBoxes(bbox1, bbox2, t) {
 }
 
 function isValidPlate(plateText) {
-    if (plateText.length < 3 || plateText.length > 9) return false; // Length check
+    if (plateText.length < 3 || plateText.length > 12) return false; // Length check
     if (/^[0-9]+$/.test(plateText)) return false; // Only numbers (e.g., "11", "000")
     if (/^[A-Z]+$/.test(plateText)) return false; // Only letters (e.g., "VIII", "WIN")
     // if (/[^A-Z0-9-_]/.test(plateText)) return false; // Contains special characters (e.g., "#", "..."), "-" and "_" allowed
