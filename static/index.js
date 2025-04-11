@@ -211,8 +211,16 @@ function processResults(results) {
 
 function showLicensePlateList(plates) {
     const resultsList = document.getElementById("resultsList");
-    resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
-        onchange="searchResults(this)">`;
+
+    // Keep the existing headline (created in processResults())
+    const headline = document.querySelector(".result-headline");
+
+    // Clear only the dynamic content (plates/search bar) below the headline
+    resultsList.innerHTML = `
+        ${headline.outerHTML}
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate" 
+               onchange="searchResults(this)">
+    `;
 
     plates.forEach((plate) => {
         // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
