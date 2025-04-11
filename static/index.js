@@ -214,24 +214,18 @@ function processResults(results) {
 
 function showLicensePlateList(plates) {
     const resultsList = document.getElementById("resultsList");
-<<<<<<< HEAD
-    if (isVideo) {
-        resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
-        onchange="searchResults(this)">`;   
-    }
-=======
 
     // Keep the existing headline (created in processResults())
     var headline = document.querySelector(".result-headline");
-    if (isVideo) {
 
     // Clear only the dynamic content (plates/search bar) below the headline
     resultsList.innerHTML = `
         ${headline.outerHTML}
-        <input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate" 
-               onchange="searchResults(this)">
     `;
->>>>>>> 0443bb4aae49d4a91e21d92c10c4659c16fb954f
+    if (isVideo) {
+        resultsList.innerHTML += `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
+        onchange="searchResults(this)">`;   
+    }
 
     plates.forEach((plate) => {
         // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
