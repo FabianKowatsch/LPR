@@ -184,11 +184,12 @@ def predict(config):
             except Exception as e:
                 box_serializable = box.xyxy.cpu().numpy().tolist() if hasattr(box, 'xyxy') else str(box)
 
-                results.append({
-                    "image": image,
-                    "box": box_serializable,
-                    "error": f"OCR processing failed: {str(e)}"
-                })
+                if(len(results) == 0):
+                    results.append({
+                        "image": cropped_image_path,
+                        "box": box_serializable,
+                        "error": f"OCR processing failed: {str(e)}"
+                    })
                 continue
 
     return results
