@@ -104,8 +104,7 @@ class OCR_Module:
 
             if not label or len(label[0].strip()) == 0:  # Kein Text erkannt
                 raise ValueError("No text detected.")
-            print("TEXT", repr(label[0]))
-            print("confidence", confidence)
+            
             filtered_text = ""
             for i, (char, conf) in enumerate(zip(label[0], confidence[0])):
                 if conf < 0.5:
@@ -113,7 +112,7 @@ class OCR_Module:
                 if i in [1, 2, 3] and conf < 0.6:
                     continue
                 filtered_text += char
-            print("FILTERED", filtered_text)
+            
             return filtered_text, confidence_mean
         except Exception as e:
             print(f"Parseq OCR failed: {e}")  # Debugging-Ausgabe

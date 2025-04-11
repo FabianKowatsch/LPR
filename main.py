@@ -220,12 +220,13 @@ def predict_from_video(config, progress_callback=None):
         # n_init=2,           # Minimum number of confirmed detections before being tracked
         # max_cosine_distance=0.3,  # Cosine distance threshold for feature matching
     )
+    
 
     frame_count = 0
     max_track_id = -1
     results = []
     while cap.isOpened():
-        print(f"___Frame {frame_count}___")
+        # print(f"___Frame {frame_count}___")
         ret, frame = cap.read()
         if not ret:
             break  # Stop when the video ends
@@ -240,9 +241,15 @@ def predict_from_video(config, progress_callback=None):
 
         if frame_count % frame_interval == 0:
             if progress_callback:
-        # Using processed frames over total frames (approximate)
+                # Using processed frames over total frames (approximate)
                 progress = int((frame_count / total_frames) * 100)
                 progress_callback(progress)
+
+            # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # frame_tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0  # Shape: [3, H, W], normalized
+            # frame_tensor = frame_tensor.unsqueeze(0).to(detector.model.device)  # Add batch dim and move to device
+
+            # print(f"Frame data type: {type(frame)}")
             boxes = detector(frame)
             center_boxes = []  # Prepare for DeepSORT
             bounding_boxes = []
@@ -271,9 +278,13 @@ def predict_from_video(config, progress_callback=None):
                 except Exception as e:
                     print(f"Error processing plate in frame {frame_count}: {e}")
                     continue
+
             # Update tracker with center_boxes
+            # tracked_objects = last_frame_tracked_objects
+            # last_frame_tracked_objects = tracker.update_tracks(center_boxes, frame=frame)
             tracked_objects = tracker.update_tracks(center_boxes, frame=frame)
-            tracked_boxes = []
+            
+            # tracked_boxes = []
             for track in tracked_objects:
                 if not track.is_confirmed():
                     print("Not confirmed")
@@ -283,7 +294,7 @@ def predict_from_video(config, progress_callback=None):
                 if int(track_id) > max_track_id:
                     max_track_id = int(track_id)
 
-                tracker_box = track.to_tlbr()
+                tracker_box = track.to_tlbr(orig=True)
 
                 # Check if the tracker box overlaps with any of the bounding boxes
                 detector_box = None
@@ -293,7 +304,7 @@ def predict_from_video(config, progress_callback=None):
                     if iou > iou_max:
                         iou_max = iou
                         detector_box = box
-                        tracked_boxes.append(box)
+                        # tracked_boxes.append(box)
 
                 if detector_box is None:
                     continue
@@ -337,54 +348,6 @@ def predict_from_video(config, progress_callback=None):
                 except Exception as e:
                     print(f"Error processing tracked plate {track_id} in frame {frame_count}: {e}")
                     continue
-
-            print(f"___Max track id: {max_track_id}")
-            # Get bounding boxes minus tracked boxes
-            # for box in bounding_boxes:
-            #     if box in tracked_boxes:
-            #         continue
-                
-            #     max_track_id += 1
-            #     # Use YOLO bounding box (not DeepSORT's predicted one)
-            #     x1, y1, x2, y2 = list(map(int, box))
-            #     try:
-            #         # Crop and process image
-            #         lp_image = crop_image(frame, list(map(int, box)))
-
-            #         # Save cropped image
-            #         cropped_image_path = f"{cropped_dir}tracked_plate_{max_track_id}_frame_{frame_count}.png"
-            #         cv2.imwrite(cropped_image_path, lp_image)
-
-            #         # Upscale and process
-            #         lp_image = upscaler(lp_image)
-            #         lp_image = image_processing(lp_image)
-
-            #         # OCR
-            #         lp_text, confidence = ocr(lp_image)
-            #         text_filtered = re.sub(r'(?<!\s)[^A-Z0-9-\s](?!\s)', ' ', lp_text)
-
-            #         if "OCR failed" in lp_text:
-            #             continue
-
-            #         # Append results with tracking ID
-            #         results.append({
-            #             "is_tracked": False,
-            #             "frame": frame_count,
-            #             "fps": fps,
-            #             "time": time_str,
-            #             "track_id": max_track_id,
-            #             "image": cropped_image_path,  # Path to cropped image
-            #             "confidence": confidence,
-            #             "box": [x1, y1, x2, y2],
-            #             "lp_text": lp_text,
-            #             "text_filtered": text_filtered
-            #         })
-
-            #     except Exception as e:
-            #         print(f"Error processing tracked plate {max_track_id} in frame {frame_count}: {e}")
-            #         continue
-
-
         frame_count += 1
 
     cap.release()

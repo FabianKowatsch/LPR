@@ -1,4 +1,5 @@
 let frameRate = 30;
+let isVideo = false;
 
 function runInference() {
     const fileInput = document.getElementById("fileInput");
@@ -81,7 +82,7 @@ function processResults(results) {
     // Determine if the uploaded file is a video
     const videoExtensions = [".mp4", ".avi", ".mov", ".mkv"];
     const fileExtension = results.filename.split(".").pop().toLowerCase();
-    const isVideo = videoExtensions.includes(`.${fileExtension}`);
+    isVideo = videoExtensions.includes(`.${fileExtension}`);
 
     let mediaElement = null;
     let videoPlayer = null;
@@ -171,6 +172,8 @@ function processResults(results) {
         mediaWrapper.appendChild(bboxOverlay);
 
         imageContainer.appendChild(mediaWrapper);
+
+        // Delete search bar
     }
 
     // // Back to Home Button hinzufügen
@@ -211,8 +214,10 @@ function processResults(results) {
 
 function showLicensePlateList(plates) {
     const resultsList = document.getElementById("resultsList");
-    resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
-        onchange="searchResults(this)">`;
+    if (isVideo) {
+        resultsList.innerHTML = `<input type="text" id="searchBar" class="search-bar" placeholder="Search for License Plate"
+        onchange="searchResults(this)">`;   
+    }
 
     plates.forEach((plate) => {
         // Wir merken uns, ob wir mindestens eine gültige Plate angezeigt haben
@@ -385,6 +390,10 @@ function highlightBoundingBoxes(plates, overlay, media, videoPlayer) {
 
                     const previousFrame = plate.frames[previousIndex];
                     const nextFrame = plate.frames[nextIndex];
+
+                    if (nextFrame - previousFrame > 4) { // if more than 4 frames between dont interpolate!
+                        return;
+                    }
 
                     const distance = Math.abs(nextFrame - previousFrame);
                     const currentDistance = Math.abs(currentFrame - previousFrame);
