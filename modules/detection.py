@@ -6,7 +6,11 @@ import torchvision.transforms.functional as TF
 class LPD_Module:
     def __init__(self, model_path, verbose=False):
         self.model = YOLO(model_path, verbose=verbose)
-        self.model.to('cuda')
+
+        if torch.cuda.is_available():
+            self.model.to('cuda')
+        else:
+            self.model.to('cpu')
  
     def __call__(self, images):
         # images_tensor = self.prepare_image(images)
