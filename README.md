@@ -55,7 +55,7 @@ conda activate lpr
 ### Testing:
 
 ```bash
-python main.py
+python eval.py
 ```
 
 ### Training:
@@ -95,7 +95,7 @@ image_processing:
   max_rotation_angle: 10
 ```
 
-## Dataset
+### Dataset
 
 Specify dataset parameters in config/data.yaml. See [YOLO dataset docs](https://docs.ultralytics.com/datasets/detect/) for additional parameters.
 
@@ -123,4 +123,8 @@ pretrained: True
 single_cls: True
 val: True
 ```
+
+## Oriented bounding Boxes
+
+To use the OBB-model, switch to the OBB branch.
 
