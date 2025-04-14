@@ -243,7 +243,7 @@ function showLicensePlateList(plates) {
         // Wenn wir hier sind, haben wir ein valides Kennzeichen.
         hasValidPlate = true;
 
-        console.log(`Track ID: ${plate.trackID}, Plate text: ${plate.lpText}, Max Confidence: ${plate.maxConfidence}`);
+        // console.log(`Track ID: ${plate.trackID}, Plate text: ${plate.lpText}, Max Confidence: ${plate.maxConfidence}`);
 
         const resultItem = document.createElement("div");
         resultItem.classList.add("result-item");

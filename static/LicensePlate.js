@@ -159,7 +159,7 @@ function findHigestConfidenceText() {
 
 // Filter out invalid license plates
 function filterLicensePlates() {
-    licensePlates = licensePlates.filter((plate) => isValidPlate(plate.lpText));
+    licensePlates = licensePlates.filter((plate) => isValidPlate(plate.filteredText));
 }
 
 function joinLicensePlates() {
@@ -184,8 +184,31 @@ function joinLicensePlates() {
 }
 
 function searchLicensePlates(searchText) {
-    plates = licensePlates;
-    // iterate over license plates and sort them by levenshtein distance to the search text
-    plates.sort((a, b) => levenshtein(a.lpText, searchText) - levenshtein(b.lpText, searchText));
-    return plates;
+    // Lowercase input for case-insensitive search
+    const lowerSearch = searchText.toLowerCase();
+
+    const exactMatches = [];
+    const fuzzyMatches = [];
+
+    for (const plate of licensePlates) {
+        const plateText = plate.lpText.toLowerCase();
+        if (plateText.includes(lowerSearch)) {
+            exactMatches.push({ plate, rank: plateText.indexOf(lowerSearch) });
+        } else {
+            const distance = levenshtein(plateText, lowerSearch);
+            fuzzyMatches.push({ plate, distance });
+        }
+    }
+
+    // Sort exact matches by where the substring appears (earlier is better)
+    exactMatches.sort((a, b) => a.rank - b.rank);
+
+    // Sort fuzzy matches by Levenshtein distance
+    fuzzyMatches.sort((a, b) => a.distance - b.distance);
+
+    // Return combined list: exact matches first, then fuzzy ones
+    return [
+        ...exactMatches.map(e => e.plate),
+        ...fuzzyMatches.map(f => f.plate),
+    ];
 }
