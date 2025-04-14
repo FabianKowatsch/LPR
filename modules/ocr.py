@@ -9,7 +9,6 @@ import subprocess
 class OCR_Module:
     def __init__(self, config):
         self.config = config
-        print(self.config)
         self.model_name = self.config["type"]
         self.model = None
         

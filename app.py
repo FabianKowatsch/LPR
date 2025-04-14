@@ -1,8 +1,8 @@
 import os
 import yaml
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, url_for, flash, jsonify
 from werkzeug.utils import secure_filename
-from main import predict, predict_from_video  # Function for license plate recognition
+from predict import predict, predict_from_video
 import traceback
 from flask_socketio import SocketIO
 

@@ -64,6 +64,7 @@ class Processing:
         return image
 
     def rotate(self, image):
+        # Switch to OBB branch instead!
         grayscale = image if self.use_grayscale else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
         # Edge detection
@@ -110,28 +111,5 @@ class Processing:
         return aligned_image
     
 
-    def find_license_plate_corners(self, image):
- 
-        # 1. Vorverarbeitung: In Graustufen umwandeln und Rauschen reduzieren
-        blurred = cv2.GaussianBlur(image, (5, 5), 0)
-
-        # 2. Kantenerkennung mit Canny
-        edged = cv2.Canny(blurred, 50, 200)
-
-        # 3. Konturfindung
-        contours, _ = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # Sortiere Konturen nach Fläche (absteigend)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
-
-        for contour in contours:
-            # 4. Approximierung der Kontur
-            peri = cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-
-            # Wenn die approximierte Kontur 4 Punkte hat, nehmen wir an, dass dies das Kennzeichen ist
-            if len(approx) == 4:
-                return approx.reshape(4, 2)
-    
-        return None
 
 

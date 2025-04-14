@@ -55,7 +55,7 @@ conda activate lpr
 ### Testing:
 
 ```bash
-python main.py
+python eval.py
 ```
 
 ### Training:
@@ -71,30 +71,31 @@ python train.py
 Change LPR specific parameters in config/config.yaml:
 ```
 data_path: ./data/test/images
+label_path: ./data/test/labels
 lpd_checkpoint_path: checkpoints/test/LPD_best.pt
-verbose: True
+verbose: False
 visualize: True
 recognizer: 
-  type: tesseract # parseq, easyocr, tesseract
+  type: parseq  # parseq, easyocr, tesseract
   language: en
-  parseq_img_size: [32, 128]
+  parseq_img_size: [32, 128] # [32, 128]
   tesseract_engine: 3 # 0=Legacy, 1=LSTM, 2=Legacy+LSTM 3=default
   tesseract_segmentation: 7 # For single lines
 upscaler:
-  type: "LANCZOS4" # LANCZOS4, bilinear, bicubic
+  type: bilinear # LANCZOS4, bilinear, bicubic, GAN
   scale_factor: 2
 image_processing:
   grayscale: True
-  denoising: False
+  denoising: True
   normalize: True
   contrast: False
   thresholding: False
-  threshold_value: 125
+  threshold_value: 100
   rotation: False
-  max_rotation_angle: 15
+  max_rotation_angle: 10
 ```
 
-## Dataset
+### Dataset
 
 Specify dataset parameters in config/data.yaml. See [YOLO dataset docs](https://docs.ultralytics.com/datasets/detect/) for additional parameters.
 
@@ -122,4 +123,8 @@ pretrained: True
 single_cls: True
 val: True
 ```
+
+## Oriented bounding Boxes
+
+To use the OBB-model, switch to the OBB branch.
 
